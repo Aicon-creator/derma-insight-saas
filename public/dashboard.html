@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Derma Insight Dashboard</title>
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <h2>Derma Insight</h2>
+        <p>SaaS Dashboard</p>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-link active">Overview</a>
+        <a href="#" class="nav-link">Products</a>
+        <a href="#" class="nav-link">Recommendations</a>
+        <a href="#" class="nav-link">Customers</a>
+        <a href="./segment.html">Segments</a>
+      </nav>
+
+      <button class="btn logout-btn" id="logoutBtn">Logout</button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <h1>Dashboard Overview</h1>
+          <p>Welcome to Derma Insight SaaS</p>
+
+           <div class="dashboard-filters">
+            <label for="dateRange">Time Range:</label>
+            <select id="dateRange">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </div>
+        </div>
+      </header>
+
+      <section id="newMerchantState" class="new-merchant-state hidden">
+        <h2>Welcome to Derma Insight</h2>
+        <p>Your dashboard is ready, but this merchant account has no store data yet.</p>
+
+        <div class="onboarding-actions">
+          <button id="generateDemoDataBtn">Generate Demo Data</button>
+          <button class="secondary-btn" disabled>Connect Shopify</button>
+          <button class="secondary-btn" disabled>Upload CSV</button>
+        </div>
+
+        <small>
+          Demo data lets you preview analytics, recommendations, revenue trends and customer insights.
+        </small>
+      </section>
+
+      <!-- Overview Cards -->
+      <section class="cards-grid">
+        <div class="card stat-card">
+          <h3>Total Customers</h3>
+          <p id="totalCustomers">--</p>
+        </div>
+
+        <div class="card stat-card">
+          <h3>Total Products</h3>
+          <p id="totalProducts">--</p>
+        </div>
+
+        <div class="card stat-card">
+          <h3>Total Revenue</h3>
+          <p id="totalRevenue">--</p>
+        </div>
+
+        <div class="card stat-card">
+          <h3>Conversion Rate</h3>
+          <p id="conversionRate">--</p>
+        </div>
+      </section>
+
+      <!-- Smart Insights -->
+      <section class="insights-grid">
+        <div class="card small-card">
+          <h4>Top Product</h4>
+          <p id="topProductInsight">Loading...</p>
+        </div>
+
+        <div class="card small-card">
+          <h4>Top Skin Type</h4>
+          <p id="topSkinTypeInsight">Loading...</p>
+        </div>
+
+        <div class="card small-card">
+          <h4>Revenue (Last 7 Days)</h4>
+          <p id="revenueInsight">Loading...</p>
+        </div>
+
+        <div class="card small-card">
+          <h4>Repeat Buyers</h4>
+          <p id="repeatBuyerInsight">Loading...</p>
+        </div>
+      </section>
+
+      <!-- Analytics Snapshot -->
+      <section class="card">
+        <h3>Analytics Snapshot</h3>
+        <div class="chart-container">
+          <canvas id="revenueChart"></canvas>
+        </div>
+      </section>
+
+      <!-- Recommendations -->
+      <section class="card">
+        <div class="section-header">
+          <h3>Recommendations</h3>
+          <span class="badge">AI Picks</span>
+        </div>
+      </section>
+
+      <!-- Customer Intelligence -->
+      <section class="card">
+        <div class="section-header">
+          <h3>Customer Intelligence</h3>
+          <span class="badge">Live Segments</span>
+        </div>
+
+        <div class="customer-section">
+          <h4>Inactive Users</h4>
+          <div id="inactiveUsersList">
+            <p>Loading...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Product Performance -->
+      <section class="card panel">
+        <div class="section-header">
+          <h3>Product Performance</h3>
+          <span class="badge">Top 5</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="./js/auth.js"></script>
+  <script src="./js/api.js"></script>
+  <script src="./js/dashboard.js"></script>
+</body>
+</html>

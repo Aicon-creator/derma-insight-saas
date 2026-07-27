@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Account | Derma Insight</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f4f7fb;
+      padding: 20px;
+    }
+
+    .signup-container {
+      width: 100%;
+      max-width: 480px;
+      background: #ffffff;
+      padding: 35px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    .signup-container h1 {
+      margin-bottom: 10px;
+      color: #1f2937;
+      font-size: 28px;
+      text-align: center;
+    }
+
+    .signup-container p {
+      text-align: center;
+      color: #6b7280;
+      margin-bottom: 25px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 7px;
+      color: #374151;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 15px;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: #2563eb;
+    }
+
+    button {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 10px;
+      background: #2563eb;
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    button:disabled {
+      background: #93c5fd;
+      cursor: not-allowed;
+    }
+
+    .message {
+      margin-top: 15px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .message.success {
+      color: #15803d;
+    }
+
+    .message.error {
+      color: #dc2626;
+    }
+
+    .login-link {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 14px;
+      color: #6b7280;
+    }
+
+    .login-link a {
+      color: #2563eb;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .login-link a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="signup-container">
+    <h1>Create Merchant Account</h1>
+    <p>Start using Derma Insight for your skincare business.</p>
+
+    <form id="signupForm">
+      <div class="form-group">
+        <label for="businessName">Business Name</label>
+        <input 
+          type="text" 
+          id="businessName" 
+          placeholder="e.g. Glow Beauty Studio" 
+          required 
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="ownerName">Owner Name</label>
+        <input 
+          type="text" 
+          id="ownerName" 
+          placeholder="e.g. Tosin Mautin" 
+          required 
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input 
+          type="email" 
+          id="email" 
+          placeholder="e.g. owner@example.com" 
+          required 
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="platformType">Platform Type</label>
+        <select id="platformType" required>
+          <option value="custom">Custom Store</option>
+          <option value="shopify">Shopify Store</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input 
+          type="password" 
+          id="password" 
+          placeholder="Minimum 6 characters" 
+          required 
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="confirmPassword">Confirm Password</label>
+        <input 
+          type="password" 
+          id="confirmPassword" 
+          placeholder="Repeat password" 
+          required 
+        />
+      </div>
+
+      <button type="submit" id="signupBtn">Create Account</button>
+
+      <div id="signupMessage" class="message"></div>
+    </form>
+
+    <div class="login-link">
+      Already have an account?
+      <a href="./index.html">Login here</a>
+    </div>
+  </div>
+
+  <script src="./js/signup.js"></script>
+</body>
+</html>
