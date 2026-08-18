@@ -5,16 +5,18 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const authLimiter = require("./middleware/rateLimiter");
 
 dotenv.config();
 
 const app = express();
+const isProduction = process.env.NODE_ENV === "production";
 
 /*
  * Render and similar platforms run the application behind a proxy.
  * This allows Express to read the original client IP correctly.
  */
-if (process.env.NODE_ENV === "production") {
+if (isProduction) {
   app.set("trust proxy", 1);
 }
 
@@ -88,8 +90,8 @@ app.get("/api/health", (req, res) => {
  * We can add a stricter login-specific limiter later.
  */
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
+  windowMs: isProduction ? 15 * 60 * 1000 : 60 * 1000,
+  max: isProduction ? 300 : 5000,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -97,8 +99,6 @@ const apiLimiter = rateLimit({
     message: "Too many requests. Please try again later."
   }
 });
-
-app.use("/api", apiLimiter);
 
 /*
  * Serve the frontend from the public folder.
@@ -122,8 +122,9 @@ const customerRoutes = require("./routes/customerRoutes");
 const segmentRoutes = require("./routes/segmentRoutes");
 const shopifyRoutes = require("./routes/shopifyRoutes");
 
-app.use("/api/auth", authRoutes);
-app.use("/api/merchants/auth", merchantAuthRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/merchants/auth", authLimiter, merchantAuthRoutes);
+app.use("/api", apiLimiter);
 app.use("/api/merchants", merchantRoutes);
 app.use("/api/sim", simRoutes);
 app.use("/api/analytics", analyticsRoutes);

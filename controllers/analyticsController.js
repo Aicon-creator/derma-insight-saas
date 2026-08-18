@@ -4,6 +4,14 @@ const Event = require("../models/Event");
 
 const mongoose = require("mongoose");
 
+function toRoundedRate(numerator, denominator) {
+  if (denominator <= 0) {
+    return 0;
+  }
+
+  return Number(((numerator / denominator) * 100).toFixed(2));
+}
+
 function getMerchantId(req) {
   const merchantId =
     req.merchant?._id ||
@@ -45,26 +53,48 @@ const getOverviewAnalytics = async (req, res) => {
       },
       {
         $group: {
-          _id: null,
+          _id: "$customerId",
           totalEvents: { $sum: 1 },
-
           totalViews: {
             $sum: { $cond: [{ $eq: ["$type", "view"] }, 1, 0] },
           },
-
           totalAddToCart: {
             $sum: { $cond: [{ $eq: ["$type", "add_to_cart"] }, 1, 0] },
           },
-
           totalPurchases: {
             $sum: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] },
           },
-
           totalRevenue: {
             $sum: {
               $cond: [
                 { $eq: ["$type", "purchase"] },
                 { $multiply: ["$price", "$quantity"] },
+                0,
+              ],
+            },
+          },
+          viewed: {
+            $max: { $cond: [{ $eq: ["$type", "view"] }, 1, 0] },
+          },
+          purchased: {
+            $max: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] },
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalEvents: { $sum: "$totalEvents" },
+          totalViews: { $sum: "$totalViews" },
+          totalAddToCart: { $sum: "$totalAddToCart" },
+          totalPurchases: { $sum: "$totalPurchases" },
+          totalRevenue: { $sum: "$totalRevenue" },
+          uniqueViewers: { $sum: "$viewed" },
+          uniquePurchasingViewers: {
+            $sum: {
+              $cond: [
+                { $and: [{ $gt: ["$viewed", 0] }, { $gt: ["$purchased", 0] }] },
+                1,
                 0,
               ],
             },
@@ -85,10 +115,12 @@ const getOverviewAnalytics = async (req, res) => {
     const totalCustomers = await Customer.countDocuments({ merchantId });
     const totalProducts = await Product.countDocuments({ merchantId });
 
-    const conversionRate =
-      result.totalViews > 0
-        ? Number(((result.totalPurchases / result.totalViews) * 100).toFixed(2))
-        : 0;
+    const conversionRate = toRoundedRate(
+      result.uniquePurchasingViewers || 0,
+      result.uniqueViewers || 0
+    );
+    const conversionRateAnomaly =
+      (result.totalPurchases || 0) > (result.totalViews || 0);
 
     // 🔥 Keep your insights (good feature)
     const revenueLast7 = await Event.aggregate([
@@ -138,6 +170,8 @@ const getOverviewAnalytics = async (req, res) => {
         totalPurchases: result.totalPurchases,
         totalRevenue: Number(result.totalRevenue.toFixed(2)),
         conversionRate,
+        conversionRateRaw: conversionRate,
+        conversionRateAnomaly,
 
         revenueLast7Days:
           revenueLast7.length > 0
@@ -268,11 +302,123 @@ const getTopProducts = async (req, res) => {
       },
     ];
 
-    const topProducts = await Event.aggregate(pipeline);
+    const aggregatedTopProducts = await Event.aggregate([
+      {
+        $match: {
+          merchantId,
+          occurredAt: { $gte: cutoffDate },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            productId: "$productId",
+            customerId: "$customerId",
+          },
+          views: {
+            $sum: { $cond: [{ $eq: ["$type", "view"] }, 1, 0] },
+          },
+          addToCart: {
+            $sum: { $cond: [{ $eq: ["$type", "add_to_cart"] }, 1, 0] },
+          },
+          purchases: {
+            $sum: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] },
+          },
+          revenue: {
+            $sum: {
+              $cond: [
+                { $eq: ["$type", "purchase"] },
+                { $multiply: ["$price", "$quantity"] },
+                0,
+              ],
+            },
+          },
+          viewed: {
+            $max: { $cond: [{ $eq: ["$type", "view"] }, 1, 0] },
+          },
+          purchased: {
+            $max: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] },
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id.productId",
+          views: { $sum: "$views" },
+          addToCart: { $sum: "$addToCart" },
+          purchases: { $sum: "$purchases" },
+          revenue: { $sum: "$revenue" },
+          uniqueViewers: { $sum: "$viewed" },
+          uniquePurchasingViewers: {
+            $sum: {
+              $cond: [
+                { $and: [{ $gt: ["$viewed", 0] }, { $gt: ["$purchased", 0] }] },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $sort: {
+          revenue: -1,
+          purchases: -1,
+          addToCart: -1,
+          views: -1,
+        },
+      },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: "products",
+          localField: "_id",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      {
+        $unwind: {
+          path: "$product",
+          preserveNullAndEmptyArrays: false,
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          productId: "$_id",
+          title: "$product.title",
+          category: "$product.category",
+          skinType: "$product.skinType",
+          concern: "$product.concern",
+          views: 1,
+          addToCart: 1,
+          purchases: 1,
+          revenue: { $round: ["$revenue", 2] },
+          uniqueViewers: 1,
+          uniquePurchasingViewers: 1,
+        },
+      },
+    ]);
+
+    const topProducts = aggregatedTopProducts.map((product) => ({
+      ...product,
+      conversionRate: toRoundedRate(
+        product.uniquePurchasingViewers || 0,
+        product.uniqueViewers || 0
+      ),
+      conversionRateRaw: toRoundedRate(
+        product.uniquePurchasingViewers || 0,
+        product.uniqueViewers || 0
+      ),
+    }));
+
+    const qaWarnings = [];
 
     return res.json({
       periodDays: days,
       topProducts,
+      qaWarnings,
     });
   } catch (error) {
     console.log("TOP PRODUCTS ANALYTICS ERROR:", error);
@@ -383,11 +529,120 @@ const getSkinTypeAnalytics = async (req, res) => {
       },
     ];
 
-    const skinTypeInsights = await Event.aggregate(pipeline);
+    const aggregatedSkinTypeInsights = await Event.aggregate([
+      {
+        $match: {
+          merchantId,
+          occurredAt: { $gte: cutoffDate },
+        },
+      },
+      {
+        $lookup: {
+          from: "customers",
+          localField: "customerId",
+          foreignField: "_id",
+          as: "customer",
+        },
+      },
+      {
+        $unwind: {
+          path: "$customer",
+          preserveNullAndEmptyArrays: false,
+        },
+      },
+      {
+        $group: {
+          _id: {
+            skinType: "$customer.skinType",
+            customerId: "$customerId",
+          },
+          views: {
+            $sum: { $cond: [{ $eq: ["$type", "view"] }, 1, 0] },
+          },
+          addToCart: {
+            $sum: { $cond: [{ $eq: ["$type", "add_to_cart"] }, 1, 0] },
+          },
+          purchases: {
+            $sum: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] },
+          },
+          revenue: {
+            $sum: {
+              $cond: [
+                { $eq: ["$type", "purchase"] },
+                { $multiply: ["$price", "$quantity"] },
+                0,
+              ],
+            },
+          },
+          viewed: {
+            $max: { $cond: [{ $eq: ["$type", "view"] }, 1, 0] },
+          },
+          purchased: {
+            $max: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] },
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id.skinType",
+          customerIds: { $addToSet: "$_id.customerId" },
+          views: { $sum: "$views" },
+          addToCart: { $sum: "$addToCart" },
+          purchases: { $sum: "$purchases" },
+          revenue: { $sum: "$revenue" },
+          uniqueViewers: { $sum: "$viewed" },
+          uniquePurchasingViewers: {
+            $sum: {
+              $cond: [
+                { $and: [{ $gt: ["$viewed", 0] }, { $gt: ["$purchased", 0] }] },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          skinType: {
+            $ifNull: ["$_id", "unknown"],
+          },
+          customers: { $size: "$customerIds" },
+          views: 1,
+          addToCart: 1,
+          purchases: 1,
+          revenue: { $round: ["$revenue", 2] },
+          uniqueViewers: 1,
+          uniquePurchasingViewers: 1,
+        },
+      },
+      {
+        $sort: {
+          revenue: -1,
+          purchases: -1,
+          views: -1,
+        },
+      },
+    ]);
+
+    const skinTypeInsights = aggregatedSkinTypeInsights.map((row) => ({
+      ...row,
+      conversionRate: toRoundedRate(
+        row.uniquePurchasingViewers || 0,
+        row.uniqueViewers || 0
+      ),
+      conversionRateRaw: toRoundedRate(
+        row.uniquePurchasingViewers || 0,
+        row.uniqueViewers || 0
+      ),
+    }));
+    const qaWarnings = [];
 
     return res.json({
       periodDays: days,
       skinTypeInsights,
+      qaWarnings,
     });
   } catch (error) {
     console.log("SKIN TYPE ANALYTICS ERROR:", error);
@@ -498,11 +753,120 @@ const getConcernAnalytics = async (req, res) => {
       },
     ];
 
-    const concernInsights = await Event.aggregate(pipeline);
+    const aggregatedConcernInsights = await Event.aggregate([
+      {
+        $match: {
+          merchantId,
+          occurredAt: { $gte: cutoffDate },
+        },
+      },
+      {
+        $lookup: {
+          from: "customers",
+          localField: "customerId",
+          foreignField: "_id",
+          as: "customer",
+        },
+      },
+      {
+        $unwind: {
+          path: "$customer",
+          preserveNullAndEmptyArrays: false,
+        },
+      },
+      {
+        $group: {
+          _id: {
+            concern: "$customer.concern",
+            customerId: "$customerId",
+          },
+          views: {
+            $sum: { $cond: [{ $eq: ["$type", "view"] }, 1, 0] },
+          },
+          addToCart: {
+            $sum: { $cond: [{ $eq: ["$type", "add_to_cart"] }, 1, 0] },
+          },
+          purchases: {
+            $sum: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] },
+          },
+          revenue: {
+            $sum: {
+              $cond: [
+                { $eq: ["$type", "purchase"] },
+                { $multiply: ["$price", "$quantity"] },
+                0,
+              ],
+            },
+          },
+          viewed: {
+            $max: { $cond: [{ $eq: ["$type", "view"] }, 1, 0] },
+          },
+          purchased: {
+            $max: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] },
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id.concern",
+          customerIds: { $addToSet: "$_id.customerId" },
+          views: { $sum: "$views" },
+          addToCart: { $sum: "$addToCart" },
+          purchases: { $sum: "$purchases" },
+          revenue: { $sum: "$revenue" },
+          uniqueViewers: { $sum: "$viewed" },
+          uniquePurchasingViewers: {
+            $sum: {
+              $cond: [
+                { $and: [{ $gt: ["$viewed", 0] }, { $gt: ["$purchased", 0] }] },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          concern: {
+            $ifNull: ["$_id", "unknown"],
+          },
+          customers: { $size: "$customerIds" },
+          views: 1,
+          addToCart: 1,
+          purchases: 1,
+          revenue: { $round: ["$revenue", 2] },
+          uniqueViewers: 1,
+          uniquePurchasingViewers: 1,
+        },
+      },
+      {
+        $sort: {
+          revenue: -1,
+          purchases: -1,
+          views: -1,
+        },
+      },
+    ]);
+
+    const concernInsights = aggregatedConcernInsights.map((row) => ({
+      ...row,
+      conversionRate: toRoundedRate(
+        row.uniquePurchasingViewers || 0,
+        row.uniqueViewers || 0
+      ),
+      conversionRateRaw: toRoundedRate(
+        row.uniquePurchasingViewers || 0,
+        row.uniqueViewers || 0
+      ),
+    }));
+    const qaWarnings = [];
 
     return res.json({
       periodDays: days,
       concernInsights,
+      qaWarnings,
     });
   } catch (error) {
     console.log("CONCERN ANALYTICS ERROR:", error);

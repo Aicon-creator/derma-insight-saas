@@ -170,9 +170,12 @@ const generateTestEvents = async (req, res) => {
       });
     }
 
-    const daysBack = Math.min(Number(req.body.daysBack || 30), 90);
+    const requestedDaysBack = Math.min(Number(req.body.daysBack || 30), 90);
+    const daysBack = 90;
     const now = Date.now();
     const docs = [];
+    const randomInt = (min, max) =>
+      Math.floor(Math.random() * (max - min + 1)) + min;
 
     const getCustomerBehavior = () => {
       const r = Math.random();
@@ -183,63 +186,127 @@ const generateTestEvents = async (req, res) => {
       return "casual";
     };
 
-    const pickEventTypeByBehavior = (behavior) => {
-      const r = Math.random();
-
+    // Returns funnel conversion rates for each behavior type
+    // { viewToCart: probability of add_to_cart given view, cartToPurchase: probability of purchase given view }
+    const getFunnelConversionRates = (behavior) => {
       if (behavior === "inactive") {
-        return "view";
+        return { viewToCart: 0.0, cartToPurchase: 0.0 };
       }
-
       if (behavior === "lapsed-buyer") {
-        if (r < 0.35) return "view";
-        if (r < 0.5) return "add_to_cart";
-        return "purchase";
+        return { viewToCart: 0.15, cartToPurchase: 0.35 };
       }
-
       if (behavior === "casual") {
-        if (r < 0.75) return "view";
-        if (r < 0.93) return "add_to_cart";
-        return "purchase";
+        return { viewToCart: 0.25, cartToPurchase: 0.12 };
       }
-
       if (behavior === "engaged") {
-        if (r < 0.55) return "view";
-        if (r < 0.82) return "add_to_cart";
-        return "purchase";
+        return { viewToCart: 0.40, cartToPurchase: 0.20 };
       }
-
       if (behavior === "repeat-buyer") {
-        if (r < 0.35) return "view";
-        if (r < 0.60) return "add_to_cart";
-        return "purchase";
+        return { viewToCart: 0.50, cartToPurchase: 0.35 };
       }
-
-      return "view";
+      return { viewToCart: 0.20, cartToPurchase: 0.10 };
     };
 
-    // Customers eligible for the "guaranteed recent activity" boost below.
-    // Inactive and lapsed-buyer customers are deliberately left out so their
-    // old timestamps stay old — otherwise this boost would randomly
-    // undo the very thing the archetype is supposed to demonstrate.
+    // Customers eligible for recent boost (not inactive/lapsed-buyer)
     const recentBoostPool = [];
+    const purchaseBucketSummary = {
+      range0to7: 0,
+      range8to30: 0,
+      range31to60: 0,
+      range61to90: 0,
+    };
+
+    const incrementPurchaseBucket = (purchaseDaysBack) => {
+      if (purchaseDaysBack <= 7) {
+        purchaseBucketSummary.range0to7 += 1;
+      } else if (purchaseDaysBack <= 30) {
+        purchaseBucketSummary.range8to30 += 1;
+      } else if (purchaseDaysBack <= 60) {
+        purchaseBucketSummary.range31to60 += 1;
+      } else if (purchaseDaysBack <= 90) {
+        purchaseBucketSummary.range61to90 += 1;
+      }
+    };
+
+    const createPurchaseFunnel = (customerId, product, purchaseDaysBack) => {
+      const boundedPurchaseDaysBack = Math.max(
+        0,
+        Math.min(daysBack, purchaseDaysBack)
+      );
+      const cartDaysBack = Math.min(
+        daysBack,
+        boundedPurchaseDaysBack + randomInt(0, 2)
+      );
+      const viewDaysBack = Math.min(daysBack, cartDaysBack + randomInt(0, 2));
+
+      const purchaseOccurredAt = new Date(
+        now - boundedPurchaseDaysBack * 24 * 60 * 60 * 1000
+      );
+      const cartOccurredAt = new Date(
+        now - cartDaysBack * 24 * 60 * 60 * 1000
+      );
+      const viewOccurredAt = new Date(
+        now - viewDaysBack * 24 * 60 * 60 * 1000
+      );
+
+      docs.push({
+        merchantId,
+        customerId,
+        productId: product._id,
+        type: "view",
+        quantity: 1,
+        price: 0,
+        currency: product.currency || "GBP",
+        sessionId: `sess_${Math.random().toString(36).slice(2, 10)}`,
+        occurredAt: viewOccurredAt,
+      });
+
+      docs.push({
+        merchantId,
+        customerId,
+        productId: product._id,
+        type: "add_to_cart",
+        quantity: 1,
+        price: 0,
+        currency: product.currency || "GBP",
+        sessionId: `sess_${Math.random().toString(36).slice(2, 10)}`,
+        occurredAt: cartOccurredAt,
+      });
+
+      docs.push({
+        merchantId,
+        customerId,
+        productId: product._id,
+        type: "purchase",
+        quantity: Math.random() < 0.85 ? 1 : 2,
+        price: product.price,
+        currency: product.currency || "GBP",
+        sessionId: `sess_${Math.random().toString(36).slice(2, 10)}`,
+        occurredAt: purchaseOccurredAt,
+      });
+
+      incrementPurchaseBucket(boundedPurchaseDaysBack);
+    };
 
     for (const customer of customers) {
       const behavior = getCustomerBehavior();
+      const rates = getFunnelConversionRates(behavior);
 
-      let eventCount = 0;
-
+      // Decide how many products this customer will view
+      let viewCount = 0;
       if (behavior === "inactive") {
-        eventCount = Math.floor(Math.random() * 2); // 0 or 1
+        viewCount = Math.floor(Math.random() * 2); // 0 or 1
       } else if (behavior === "lapsed-buyer") {
-        eventCount = Math.floor(Math.random() * 3) + 2; // 2 to 4
+        viewCount = Math.floor(Math.random() * 3) + 2; // 2 to 4
       } else if (behavior === "casual") {
-        eventCount = Math.floor(Math.random() * 4) + 1; // 1 to 4
+        viewCount = Math.floor(Math.random() * 5) + 2; // 2 to 6
       } else if (behavior === "engaged") {
-        eventCount = Math.floor(Math.random() * 6) + 4; // 4 to 9
+        viewCount = Math.floor(Math.random() * 8) + 5; // 5 to 12
       } else if (behavior === "repeat-buyer") {
-        eventCount = Math.floor(Math.random() * 8) + 6; // 6 to 13
+        viewCount = Math.floor(Math.random() * 10) + 7; // 7 to 16
       }
 
+      // For repeat buyers, pick a few favorite products to bias toward
       const preferredProducts =
         behavior === "repeat-buyer"
           ? [...products].sort(() => 0.5 - Math.random()).slice(0, 3)
@@ -249,55 +316,89 @@ const generateTestEvents = async (req, res) => {
         recentBoostPool.push(customer);
       }
 
-      for (let i = 0; i < eventCount; i++) {
+      // For each product this customer will view, create a funnel event chain
+      for (let i = 0; i < viewCount; i++) {
         const product =
-          behavior === "repeat-buyer"
+          behavior === "repeat-buyer" && preferredProducts.length > 0
             ? pick(preferredProducts)
             : pick(products);
 
-        const type =
-          behavior === "lapsed-buyer" && i === 0
-            ? "purchase" // guarantee every lapsed buyer actually has a purchase on record
-            : pickEventTypeByBehavior(behavior);
-
-        let eventDaysBack;
-
+        // Determine timestamps for this funnel: view -> add_to_cart -> purchase
+        let viewDaysBack;
         if (behavior === "inactive") {
-          eventDaysBack = Math.floor(Math.random() * 120) + 35; // 35 to 154 days ago
+          viewDaysBack = Math.floor(Math.random() * 120) + 35; // 35 to 154 days ago
         } else if (behavior === "lapsed-buyer") {
-          eventDaysBack = Math.floor(Math.random() * 65) + 95; // 95 to 159 days ago
-        } else if (type === "purchase") {
-          eventDaysBack =
-            Math.random() < 0.7
-              ? Math.floor(Math.random() * 7) // 70% in last 7 days
-              : Math.floor(Math.random() * daysBack);
+          // Keep lapsed buyers mostly outside 30 days but often inside 90 days
+          // so 30-day and 90-day analytics are meaningfully different in demo data.
+          viewDaysBack =
+            Math.random() < 0.72
+              ? Math.floor(Math.random() * 55) + 35 // 35 to 89 days ago
+              : Math.floor(Math.random() * 70) + 90; // 90 to 159 days ago
         } else {
-          eventDaysBack =
+          // Active customers: bias toward recent views (60% in last 7 days)
+          viewDaysBack =
             Math.random() < 0.6
-              ? Math.floor(Math.random() * 7) // 60% in last 7 days
+              ? Math.floor(Math.random() * 7)
               : Math.floor(Math.random() * daysBack);
         }
 
-        const occurredAt = new Date(
-          now - eventDaysBack * 24 * 60 * 60 * 1000
-        );
+        const viewOccurredAt = new Date(now - viewDaysBack * 24 * 60 * 60 * 1000);
 
+        // Always create a view event first
         docs.push({
           merchantId,
           customerId: customer._id,
           productId: product._id,
-          type,
-          quantity: type === "purchase" ? (Math.random() < 0.85 ? 1 : 2) : 1,
-          price: type === "purchase" ? product.price : 0,
+          type: "view",
+          quantity: 1,
+          price: 0,
           currency: product.currency || "GBP",
           sessionId: `sess_${Math.random().toString(36).slice(2, 10)}`,
-          occurredAt,
+          occurredAt: viewOccurredAt,
         });
+
+        // Decide if this view converts to add_to_cart
+        if (Math.random() < rates.viewToCart) {
+          const cartDaysBack = viewDaysBack - Math.floor(Math.random() * 2); // same day or 1 day later
+          const cartOccurredAt = new Date(now - Math.max(0, cartDaysBack) * 24 * 60 * 60 * 1000);
+
+          docs.push({
+            merchantId,
+            customerId: customer._id,
+            productId: product._id,
+            type: "add_to_cart",
+            quantity: 1,
+            price: 0,
+            currency: product.currency || "GBP",
+            sessionId: `sess_${Math.random().toString(36).slice(2, 10)}`,
+            occurredAt: cartOccurredAt,
+          });
+
+          // Decide if add_to_cart converts to purchase
+          if (Math.random() < rates.cartToPurchase) {
+            const purchaseDaysBack = cartDaysBack - Math.floor(Math.random() * 3); // within 3 days after cart
+            const purchaseOccurredAt = new Date(
+              now - Math.max(0, purchaseDaysBack) * 24 * 60 * 60 * 1000
+            );
+
+            docs.push({
+              merchantId,
+              customerId: customer._id,
+              productId: product._id,
+              type: "purchase",
+              quantity: Math.random() < 0.85 ? 1 : 2,
+              price: product.price,
+              currency: product.currency || "GBP",
+              sessionId: `sess_${Math.random().toString(36).slice(2, 10)}`,
+              occurredAt: purchaseOccurredAt,
+            });
+            incrementPurchaseBucket(Math.max(0, purchaseDaysBack));
+          }
+        }
       }
     }
 
-    // Guarantee some recent purchase activity for strong 7-day analytics.
-    // Pulled only from customers who aren't meant to look dormant.
+    // Guarantee recent purchase activity for strong 7-day analytics
     const recentActiveCustomers = [...recentBoostPool]
       .sort(() => 0.5 - Math.random())
       .slice(0, Math.min(20, recentBoostPool.length));
@@ -311,22 +412,28 @@ const generateTestEvents = async (req, res) => {
 
       for (let i = 0; i < guaranteedPurchaseCount; i++) {
         const product = pick(recentProducts);
-        const eventDaysBack = Math.floor(Math.random() * 7); // always inside last 7 days
-        const occurredAt = new Date(
-          now - eventDaysBack * 24 * 60 * 60 * 1000
-        );
+        const viewDaysBack = Math.floor(Math.random() * 7); // inside last 7 days
+        const viewOccurredAt = new Date(now - viewDaysBack * 24 * 60 * 60 * 1000);
 
-        docs.push({
-          merchantId,
-          customerId: customer._id,
-          productId: product._id,
-          type: "purchase",
-          quantity: Math.random() < 0.85 ? 1 : 2,
-          price: product.price,
-          currency: product.currency || "GBP",
-          sessionId: `sess_${Math.random().toString(36).slice(2, 10)}`,
-          occurredAt,
-        });
+        createPurchaseFunnel(customer._id, product, viewDaysBack);
+      }
+    }
+
+    const eligibleWindowCustomers =
+      recentBoostPool.length > 0 ? recentBoostPool : customers;
+    const purchaseWindowPlan = [
+      { minPurchases: 18, dayMin: 0, dayMax: 7 },
+      { minPurchases: 24, dayMin: 8, dayMax: 30 },
+      { minPurchases: 16, dayMin: 31, dayMax: 60 },
+      { minPurchases: 12, dayMin: 61, dayMax: 90 },
+    ];
+
+    for (const windowPlan of purchaseWindowPlan) {
+      for (let i = 0; i < windowPlan.minPurchases; i++) {
+        const customer = pick(eligibleWindowCustomers);
+        const product = pick(products);
+        const purchaseDaysBack = randomInt(windowPlan.dayMin, windowPlan.dayMax);
+        createPurchaseFunnel(customer._id, product, purchaseDaysBack);
       }
     }
 
@@ -337,7 +444,9 @@ const generateTestEvents = async (req, res) => {
       message: "Test events generated",
       count: docs.length,
       daysBack,
+      requestedDaysBack,
       guaranteedRecentPurchasesForCustomers: recentActiveCustomers.length,
+      purchaseBucketSummary,
     });
   } catch (error) {
     console.log("GENERATE EVENTS ERROR:", error);
