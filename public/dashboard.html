@@ -1,169 +1,205 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Derma Insight Dashboard</title>
-  <link rel="stylesheet" href="./css/style.css" />
-</head>
-<body>
-  <div class="dashboard-layout">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="sidebar-brand">
-        <h2>Derma Insight</h2>
-        <p>SaaS Dashboard</p>
-      </div>
-
-      <nav class="sidebar-nav">
-        <a href="#" class="nav-link active">Overview</a>
-        <a href="#" class="nav-link">Products</a>
-        <a href="#" class="nav-link">Recommendations</a>
-        <a href="#" class="nav-link">Customers</a>
-        <a href="./segment.html">Segments</a>
-      </nav>
-
-      <button class="btn logout-btn" id="logoutBtn">Logout</button>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="main-content">
-      <header class="topbar">
-        <div>
-          <h1>Dashboard Overview</h1>
-          <p>Welcome to Derma Insight SaaS</p>
-
-           <div class="dashboard-filters">
-            <label for="dateRange">Time Range:</label>
-            <select id="dateRange">
-              <option value="7">Last 7 days</option>
-              <option value="30" selected>Last 30 days</option>
-              <option value="90">Last 90 days</option>
-            </select>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Derma Insight | Dashboard</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body class="dashboard-page">
+    <div class="dashboard-layout">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" role="img" focusable="false">
+              <path d="M6.5 8.5c0-1.1.9-2 2-2h7c1.1 0 2 .9 2 2v7c0 1.1-.9 2-2 2h-7c-1.1 0-2-.9-2-2v-7Z" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M9 10.25h6M9 13.75h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
           </div>
-        </div>
-      </header>
-
-      <section id="newMerchantState" class="new-merchant-state hidden">
-        <h2>Welcome to Derma Insight</h2>
-        <p>Your dashboard is ready, but this merchant account has no store data yet.</p>
-
-        <div class="onboarding-actions">
-          <button id="generateDemoDataBtn">Generate Demo Data</button>
-          <button class="secondary-btn" disabled>Connect Shopify</button>
-          <button class="secondary-btn" disabled>Upload CSV</button>
-        </div>
-
-        <small>
-          Demo data lets you preview analytics, recommendations, revenue trends and customer insights.
-        </small>
-      </section>
-
-      <!-- Overview Cards -->
-      <section class="cards-grid">
-        <div class="card stat-card">
-          <h3>Total Customers</h3>
-          <p id="totalCustomers">--</p>
-        </div>
-
-        <div class="card stat-card">
-          <h3>Total Products</h3>
-          <p id="totalProducts">--</p>
-        </div>
-
-        <div class="card stat-card">
-          <h3>Total Revenue</h3>
-          <p id="totalRevenue">--</p>
-        </div>
-
-        <div class="card stat-card">
-          <h3>Conversion Rate</h3>
-          <p id="conversionRate">--</p>
-        </div>
-      </section>
-
-      <!-- Smart Insights -->
-      <section class="insights-grid">
-        <div class="card small-card">
-          <h4>Top Product</h4>
-          <p id="topProductInsight">Loading...</p>
-        </div>
-
-        <div class="card small-card">
-          <h4>Top Skin Type</h4>
-          <p id="topSkinTypeInsight">Loading...</p>
-        </div>
-
-        <div class="card small-card">
-          <h4>Revenue (Last 7 Days)</h4>
-          <p id="revenueInsight">Loading...</p>
-        </div>
-
-        <div class="card small-card">
-          <h4>Repeat Buyers</h4>
-          <p id="repeatBuyerInsight">Loading...</p>
-        </div>
-      </section>
-
-      <!-- Analytics Snapshot -->
-      <section class="card">
-        <h3>Analytics Snapshot</h3>
-        <div class="chart-container">
-          <canvas id="revenueChart"></canvas>
-        </div>
-      </section>
-
-      <!-- Recommendations -->
-      <section class="card">
-        <div class="section-header">
-          <h3>Recommendations</h3>
-          <span class="badge">AI Picks</span>
-        </div>
-
-        <div id="recommendationsList">
-          <p>Loading recommendations...</p>
-        </div>
-      </section>
-
-      <!-- Customer Intelligence -->
-      <section class="card">
-        <div class="section-header">
-          <h3>Customer Intelligence</h3>
-          <span class="badge">Live Segments</span>
-        </div>
-
-        <div class="customer-section">
-          <h4>Repeat Buyers</h4>
-          <div id="repeatBuyersList">
-            <p>Loading...</p>
+          <div>
+            <h2>Derma Insight</h2>
+            <p>Merchant dashboard</p>
           </div>
         </div>
 
-        <div class="customer-section">
-          <h4>Inactive Users</h4>
-          <div id="inactiveUsersList">
-            <p>Loading...</p>
+        <nav class="sidebar-nav" aria-label="Dashboard navigation">
+        <a href="./dashboard.html" class="nav-link active" title="Overview"><span class="nav-icon">🏠</span><span class="label">Overview</span></a>
+        <a href="./dashboard.html#products" class="nav-link" title="Products"><span class="nav-icon">🧴</span><span class="label">Products</span></a>
+        <a href="./dashboard.html#recommendations" class="nav-link" title="Recommendations"><span class="nav-icon">💡</span><span class="label">Recommendations</span></a>
+        <a href="./dashboard.html#customers" class="nav-link" title="Customers"><span class="nav-icon">👥</span><span class="label">Customers</span></a>
+        <a href="./segment.html" class="nav-link" title="Segments"><span class="nav-icon">📊</span><span class="label">Segments</span></a>
+        </nav>
+
+        <button class="btn btn-logout" id="logoutBtn" type="button">Logout</button>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="topbar-copy">
+            <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar">
+              <span class="bar"></span>
+              <span class="bar"></span>
+              <span class="bar"></span>
+            </button>
+
+            <div class="topbar-heading">
+              <span class="eyebrow">Overview</span>
+              <h1>Dashboard</h1>
+            </div>
+            <p class="topbar-sub">Track revenue, customer trends and product performance for your skincare business.</p>
           </div>
-        </div>
-      </section>
 
-      <!-- Product Performance -->
-      <section class="card panel">
-        <div class="section-header">
-          <h3>Product Performance</h3>
-          <span class="badge">Top 5</span>
-        </div>
+          <div class="topbar-actions">
+            <div class="topbar-tools">
+              <div class="dashboard-filters" aria-label="Dashboard date filters">
+                <label for="dateRange">Date range</label>
+                <select id="dateRange">
+                  <option value="7">Last 7 days</option>
+                  <option value="30" selected>Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                </select>
+              </div>
 
-        <div id="topProductsList">
-          <p>Loading...</p>
-        </div>
-      </section>
-    </main>
-  </div>
+              <div class="merchant-profile" id="merchantProfile" aria-haspopup="true">
+                <button id="merchantBtn" class="merchant-btn" aria-expanded="false">
+                  <span class="avatar" id="merchantAvatar">DI</span>
+                  <span class="merchant-name" id="merchantName">Merchant</span>
+                  <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="./js/auth.js"></script>
-  <script src="./js/api.js"></script>
-  <script src="./js/dashboard.js"></script>
-</body>
+                <div class="merchant-menu hidden" id="merchantMenu" role="menu">
+                  <a href="./settings.html" class="menu-item" role="menuitem">Settings</a>
+                  <button class="menu-item" id="logoutBtnSmall" role="menuitem">Logout</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section id="newMerchantState" class="new-merchant-state hidden" aria-live="polite">
+          <div>
+            <span class="eyebrow">New merchant setup</span>
+            <h2>Connect or import your business data</h2>
+          </div>
+          <p>Connect or import your business data to unlock analytics, customer intelligence, product insights and recommendations.</p>
+
+          <div class="onboarding-actions">
+            <button class="btn btn-primary" id="generateDemoDataBtn" type="button">Explore Demo Data</button>
+            <button class="btn btn-secondary" type="button" disabled>Connect Shopify</button>
+            <button class="btn btn-secondary" type="button" disabled>Upload CSV</button>
+          </div>
+
+          <small>Demo data is a preview dataset for exploring the product. Connect real store data to unlock live analytics.</small>
+        </section>
+
+        <section class="cards-grid" aria-label="Summary metrics">
+          <div class="card stat-card">
+            <span class="stat-label">Total Customers</span>
+            <span class="stat-value" id="totalCustomers">--</span>
+          </div>
+
+          <div class="card stat-card">
+            <span class="stat-label">Total Products</span>
+            <span class="stat-value" id="totalProducts">--</span>
+          </div>
+
+          <div class="card stat-card">
+            <span class="stat-label">Total Revenue</span>
+            <span class="stat-value" id="totalRevenue">--</span>
+          </div>
+
+          <div class="card stat-card">
+            <span class="stat-label">Conversion Rate</span>
+            <span class="stat-value" id="conversionRate">--</span>
+          </div>
+        </section>
+
+        <section class="insights-grid" aria-label="Smart insights">
+          <div class="card insight-card">
+            <span class="insight-label">Top Product</span>
+            <span class="insight-value" id="topProductInsight">Loading...</span>
+            <span class="insight-caption">Best seller</span>
+          </div>
+
+          <div class="card insight-card">
+            <span class="insight-label">Top Skin Type</span>
+            <span class="insight-value" id="topSkinTypeInsight">Loading...</span>
+            <span class="insight-caption">Largest segment</span>
+          </div>
+
+          <div class="card insight-card">
+            <span class="insight-label">Revenue Last 7 Days</span>
+            <span class="insight-value" id="revenueInsight">Loading...</span>
+            <span class="insight-caption">Last week</span>
+          </div>
+
+          <div class="card insight-card">
+            <span class="insight-label">Repeat Buyers</span>
+            <span class="insight-value" id="repeatBuyerInsight">Loading...</span>
+            <span class="insight-caption">Returning customers</span>
+          </div>
+        </section>
+
+        <section class="card chart-card" aria-label="Revenue over time">
+          <div class="section-header">
+            <h3>Revenue Overview</h3>
+            <span class="badge">Live trend</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="revenueChart"></canvas>
+          </div>
+          <div id="chartEmptyState" class="chart-empty hidden">No revenue data available for the selected timeframe.</div>
+        </section>
+
+        <section id="recommendations" class="card">
+          <div class="section-header">
+            <h3>Recommendations</h3>
+            <span class="badge">AI picks</span>
+          </div>
+
+          <div id="recommendationsList">
+            <p class="empty-text">Loading recommendations...</p>
+          </div>
+        </section>
+
+        <section id="customers" class="card">
+          <div class="section-header">
+            <h3>Customer Intelligence</h3>
+            <span class="badge">Live segments</span>
+          </div>
+
+          <div class="customer-section">
+            <h4>Repeat Buyers</h4>
+            <div id="repeatBuyersList">
+              <p class="empty-text">Loading...</p>
+            </div>
+          </div>
+
+          <div class="customer-section">
+            <h4>Inactive Users</h4>
+            <div id="inactiveUsersList">
+              <p class="empty-text">Loading...</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="products" class="card panel">
+          <div class="section-header">
+            <h3>Product Performance</h3>
+            <span class="badge">Top 5</span>
+          </div>
+
+          <div id="topProductsList">
+            <p class="empty-text">Loading...</p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="./js/auth.js"></script>
+    <script src="./js/api.js"></script>
+    <script src="./js/layout.js"></script>
+    <script src="./js/dashboard.js"></script>
+  </body>
 </html>

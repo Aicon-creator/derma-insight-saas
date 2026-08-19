@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Settings - Derma Insight</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="dashboard-layout">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-mark">DI</div>
+          <div>
+            <h2>Derma Insight</h2>
+            <p>Merchant dashboard</p>
+          </div>
+        </div>
+        <nav class="sidebar-nav" aria-label="Dashboard navigation">
+          <a href="./dashboard.html" class="nav-link">Overview</a>
+          <a href="./dashboard.html#products" class="nav-link">Products</a>
+          <a href="./dashboard.html#recommendations" class="nav-link">Recommendations</a>
+          <a href="./segment.html" class="nav-link">Segments</a>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="topbar-copy">
+            <div class="breadcrumbs">
+              <h1>Settings</h1>
+            </div>
+            <p class="topbar-sub">Business profile and branding</p>
+          </div>
+          <div class="topbar-actions"></div>
+        </header>
+
+        <section class="card" style="max-width:640px">
+          <h3>Business profile</h3>
+          <form id="settingsForm">
+            <label for="businessName">Business name</label>
+            <input id="businessName" name="businessName" type="text" required />
+
+            <label for="logoInput">Logo (optional)</label>
+            <input id="logoInput" type="file" accept="image/*" />
+            <div id="logoPreview" style="margin-top:8px"></div>
+
+            <div style="margin-top:12px">
+              <button class="btn btn-primary" id="saveSettings">Save</button>
+              <button class="btn btn-secondary" id="cancelSettings" type="button">Cancel</button>
+            </div>
+
+            <p class="muted" style="margin-top:8px">Note: Settings are saved locally in the browser for demo purposes.</p>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <script src="./js/api.js"></script>
+    <script src="./js/layout.js"></script>
+    <script src="./js/settings.js"></script>
+  </body>
+</html>

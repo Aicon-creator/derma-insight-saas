@@ -1,10 +1,4 @@
-const isLocalDevelopment =
-  window.location.hostname === "localhost" ||
-  window.location.hostname === "127.0.0.1";
-
-const API_BASE_URL = isLocalDevelopment
-  ? "http://localhost:5000"
-  : window.location.origin;
+const API_BASE_URL = window.location.origin;
 
 async function apiRequest(endpoint, options = {}) {
   const token = localStorage.getItem("merchantToken");
