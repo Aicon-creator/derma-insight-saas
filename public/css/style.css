@@ -964,27 +964,6 @@ select:focus-visible,
   }
 }
 
-/* Design tokens */
-:root{
-  --bg: #f6f8fb;
-  --surface: #ffffff;
-  --surface-alt: #fbfdfe;
-  --surface-strong: #f0f6f9;
-  --text: #0f172a;
-  --text-soft: #475569;
-  --muted: #6b7280;
-  --border: rgba(15,23,42,0.06);
-  --primary: linear-gradient(90deg,#0ea5a6,#047481);
-  --accent: #0ea5a6;
-  --success: #059669;
-  --warning: #d97706;
-  --danger: #dc2626;
-  --radius: 10px;
-  --shadow-sm: 0 1px 2px rgba(2,6,23,0.06);
-  --shadow-md: 0 6px 18px rgba(2,6,23,0.08);
-  --space: 16px;
-}
-
 /* Reduced motion respect */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -996,7 +975,6 @@ select:focus-visible,
 }
 
 /* Layout basics */
-body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:var(--bg); color:var(--text); margin:0}
 .dashboard-layout{display:flex;min-height:100vh}
 
 /* Sidebar */
