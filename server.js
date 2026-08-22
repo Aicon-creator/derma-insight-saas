@@ -121,6 +121,7 @@ const recommendationRoutes = require("./routes/recommendationRoutes");
 const customerRoutes = require("./routes/customerRoutes");
 const segmentRoutes = require("./routes/segmentRoutes");
 const shopifyRoutes = require("./routes/shopifyRoutes");
+const importsRoutes = require("./routes/importsRoutes");
 
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/merchants/auth", authLimiter, merchantAuthRoutes);
@@ -132,6 +133,7 @@ app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/segments", segmentRoutes);
 app.use("/api/shopify", shopifyRoutes);
+app.use("/api/imports", importsRoutes);
 
 /*
  * API information endpoint.
