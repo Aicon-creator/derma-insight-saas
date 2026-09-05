@@ -1689,6 +1689,21 @@ button:focus, a:focus, input:focus, select:focus{box-shadow:0 0 0 3px rgba(14,16
     align-items: center;
   }
 
+  .sidebar.collapsed .sidebar-brand {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .sidebar.collapsed .sidebar-brand h2,
+  .sidebar.collapsed .sidebar-brand p {
+    display: none;
+  }
+
+  .sidebar.collapsed .sidebar-brand .brand-mark {
+    margin: 0 auto;
+  }
+
   .sidebar.collapsed .nav-link {
     width: 100%;
     justify-content: center;

@@ -10,7 +10,12 @@
     <div class="dashboard-layout">
       <aside class="sidebar">
         <div class="sidebar-brand">
-          <div class="brand-mark" aria-hidden="true">DI</div>
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" role="img" focusable="false">
+              <path d="M6.5 8.5c0-1.1.9-2 2-2h7c1.1 0 2 .9 2 2v7c0 1.1-.9 2-2 2h-7c-1.1 0-2-.9-2-2v-7Z" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M9 10.25h6M9 13.75h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
           <div>
             <h2>Derma Insight</h2>
             <p>Merchant dashboard</p>
@@ -18,12 +23,12 @@
         </div>
 
         <nav class="sidebar-nav" aria-label="Dashboard navigation">
-          <a href="./dashboard.html" class="nav-link">Overview</a>
-          <a href="./dashboard.html#products" class="nav-link">Products</a>
-          <a href="./dashboard.html#recommendations" class="nav-link">Recommendations</a>
-          <a href="./dashboard.html#customers" class="nav-link">Customers</a>
-          <a href="./segment.html" class="nav-link">Segments</a>
-          <a href="./imports.html" class="nav-link active">CSV Imports</a>
+          <a href="./dashboard.html" class="nav-link" title="Overview"><span class="nav-icon">🏠</span><span class="label">Overview</span></a>
+          <a href="./dashboard.html#products" class="nav-link" title="Products"><span class="nav-icon">🧴</span><span class="label">Products</span></a>
+          <a href="./dashboard.html#recommendations" class="nav-link" title="Recommendations"><span class="nav-icon">💡</span><span class="label">Recommendations</span></a>
+          <a href="./dashboard.html#customers" class="nav-link" title="Customers"><span class="nav-icon">👥</span><span class="label">Customers</span></a>
+          <a href="./segment.html" class="nav-link" title="Segments"><span class="nav-icon">📊</span><span class="label">Segments</span></a>
+          <a href="./imports.html" class="nav-link active" title="CSV Imports"><span class="nav-icon">📥</span><span class="label">CSV Imports</span></a>
         </nav>
 
         <button class="btn btn-logout" id="logoutBtn" type="button">Logout</button>
