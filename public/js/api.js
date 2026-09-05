@@ -2,9 +2,11 @@ const API_BASE_URL = window.location.origin;
 
 async function apiRequest(endpoint, options = {}) {
   const token = localStorage.getItem("merchantToken");
+  const isFormDataBody =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
 
   const headers = {
-    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...(options.body && !isFormDataBody ? { "Content-Type": "application/json" } : {}),
     ...(options.headers || {})
   };
 

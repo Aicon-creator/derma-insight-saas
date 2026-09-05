@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CSV Imports | Derma Insight</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <div class="dashboard-layout">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-mark" aria-hidden="true">DI</div>
+          <div>
+            <h2>Derma Insight</h2>
+            <p>Merchant dashboard</p>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav" aria-label="Dashboard navigation">
+          <a href="./dashboard.html" class="nav-link">Overview</a>
+          <a href="./dashboard.html#products" class="nav-link">Products</a>
+          <a href="./dashboard.html#recommendations" class="nav-link">Recommendations</a>
+          <a href="./dashboard.html#customers" class="nav-link">Customers</a>
+          <a href="./segment.html" class="nav-link">Segments</a>
+          <a href="./imports.html" class="nav-link active">CSV Imports</a>
+        </nav>
+
+        <button class="btn btn-logout" id="logoutBtn" type="button">Logout</button>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="topbar-copy">
+            <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar">
+              <span class="bar"></span>
+              <span class="bar"></span>
+              <span class="bar"></span>
+            </button>
+
+            <div class="breadcrumbs">
+              <span class="eyebrow">Data pipeline v1.1</span>
+              <h1>CSV Preview</h1>
+            </div>
+            <p class="topbar-sub">Upload a CSV, validate required columns, and preview parsed rows before import.</p>
+          </div>
+
+          <div class="topbar-actions">
+            <div class="merchant-profile" id="merchantProfile" aria-haspopup="true">
+              <button id="merchantBtn" class="merchant-btn" aria-expanded="false">
+                <span class="avatar" id="merchantAvatar">DI</span>
+                <span class="merchant-name" id="merchantName">Merchant</span>
+                <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+
+              <div class="merchant-menu hidden" id="merchantMenu" role="menu">
+                <a href="./settings.html" class="menu-item" role="menuitem">Settings</a>
+                <button class="menu-item" id="logoutBtnSmall" role="menuitem">Logout</button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section class="card imports-upload-card">
+          <h2>Upload CSV for preview</h2>
+          <p class="imports-hint">This preview is read-only. It validates your file and returns the first 10 rows.</p>
+
+          <form id="csvPreviewForm" class="imports-form">
+            <div class="form-field">
+              <label for="dataType">Data type</label>
+              <select id="dataType" name="dataType" required>
+                <option value="customers">Customers</option>
+                <option value="products">Products</option>
+                <option value="events">Events</option>
+              </select>
+            </div>
+
+            <div class="form-field">
+              <label for="csvFile">CSV file</label>
+              <input id="csvFile" name="file" type="file" accept=".csv,text/csv" required />
+            </div>
+
+            <div class="imports-actions">
+              <button id="previewBtn" class="btn btn-primary" type="submit">Preview CSV</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="card imports-result-card">
+          <h2>Preview response</h2>
+          <div id="previewMeta" class="imports-meta"></div>
+          <div id="previewRows" class="imports-preview-rows"></div>
+          <div id="previewErrors" class="imports-preview-errors"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./js/api.js"></script>
+    <script src="./js/auth.js"></script>
+    <script src="./js/layout.js"></script>
+    <script src="./js/imports.js"></script>
+  </body>
+</html>

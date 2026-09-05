@@ -47,6 +47,8 @@ app.use(
 const allowedOrigins = [
   "http://127.0.0.1:5500",
   "http://localhost:5500",
+  `http://localhost:${process.env.PORT || 5001}`,
+  `http://127.0.0.1:${process.env.PORT || 5001}`,
   process.env.CLIENT_ORIGIN,
   process.env.RENDER_EXTERNAL_URL
 ].filter(Boolean);
