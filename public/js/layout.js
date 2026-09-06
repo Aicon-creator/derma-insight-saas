@@ -2,6 +2,47 @@
 (function(){
   window.__sharedLayoutBindings = true;
   const SIDEBAR_KEY = 'di_sidebar_collapsed';
+  const SIDEBAR_ITEMS = [
+    { key: "overview", href: "./dashboard.html", icon: "🏠", label: "Overview" },
+    { key: "products", href: "./dashboard.html#products", icon: "🧴", label: "Products" },
+    { key: "recommendations", href: "./dashboard.html#recommendations", icon: "💡", label: "Recommendations" },
+    { key: "customers", href: "./dashboard.html#customers", icon: "👥", label: "Customers" },
+    { key: "segments", href: "./segment.html", icon: "📊", label: "Segments" },
+    { key: "imports", href: "./imports.html", icon: "📥", label: "CSV Imports" }
+  ];
+
+  function renderSharedSidebar(){
+    const sidebar = document.querySelector("aside.sidebar[data-di-sidebar]");
+    if(!sidebar || sidebar.dataset.diSidebarRendered === "1") return;
+
+    const activeKey = document.body?.dataset?.diActiveNav || "";
+    const navHtml = SIDEBAR_ITEMS.map((item) => {
+      const isActive = item.key === activeKey;
+      return `<a href="${item.href}" class="nav-link${isActive ? " active" : ""}" title="${item.label}"${isActive ? ' aria-current="page"' : ""}><span class="nav-icon">${item.icon}</span><span class="label">${item.label}</span></a>`;
+    }).join("");
+
+    sidebar.innerHTML = `
+      <div class="sidebar-brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" role="img" focusable="false">
+            <path d="M6.5 8.5c0-1.1.9-2 2-2h7c1.1 0 2 .9 2 2v7c0 1.1-.9 2-2 2h-7c-1.1 0-2-.9-2-2v-7Z" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M9 10.25h6M9 13.75h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <h2>Derma Insight</h2>
+          <p>Merchant dashboard</p>
+        </div>
+      </div>
+      <nav class="sidebar-nav" aria-label="Dashboard navigation">
+        ${navHtml}
+      </nav>
+      <button class="btn btn-logout" id="logoutBtn" type="button">Logout</button>
+    `;
+
+    sidebar.dataset.diSidebarRendered = "1";
+  }
+
   function isSidebarCollapsed(){ return localStorage.getItem(SIDEBAR_KEY) === '1'; }
   function applySidebarState(){
     const sidebar = document.querySelector('.sidebar');
@@ -128,6 +169,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', ()=>{
+    renderSharedSidebar();
     applySidebarState(); setupSidebarToggle(); renderMerchantProfile(); setupMerchantMenu();
     syncSidebarMode();
     window.addEventListener('resize', syncSidebarMode);
