@@ -168,8 +168,18 @@
     if(logoutSmall){ logoutSmall.addEventListener('click', ()=>{ localStorage.removeItem('merchantToken'); localStorage.removeItem('merchantData'); window.location.href = '/index.html'; }); }
   }
 
+  function setupSidebarLogout(){
+    const logoutBtn = document.getElementById('logoutBtn');
+    if(!logoutBtn || logoutBtn.dataset.diLogoutBound === '1') return;
+    if(typeof logoutMerchant !== 'function') return;
+
+    logoutBtn.addEventListener('click', ()=>{ logoutMerchant(); });
+    logoutBtn.dataset.diLogoutBound = '1';
+  }
+
   document.addEventListener('DOMContentLoaded', ()=>{
     renderSharedSidebar();
+    setupSidebarLogout();
     applySidebarState(); setupSidebarToggle(); renderMerchantProfile(); setupMerchantMenu();
     syncSidebarMode();
     window.addEventListener('resize', syncSidebarMode);

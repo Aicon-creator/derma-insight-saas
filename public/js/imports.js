@@ -1,12 +1,5 @@
 requireAuth();
 
-const logoutBtn = document.getElementById("logoutBtn");
-if (logoutBtn) {
-  logoutBtn.addEventListener("click", () => {
-    logoutMerchant();
-  });
-}
-
 const csvPreviewForm = document.getElementById("csvPreviewForm");
 const previewBtn = document.getElementById("previewBtn");
 const previewMeta = document.getElementById("previewMeta");

@@ -334,17 +334,6 @@ select:focus-visible,
   padding: 0.35rem 0.45rem 1.1rem;
 }
 
-.dashboard-page .sidebar-brand {
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-.dashboard-page .sidebar-brand h2,
-.dashboard-page .sidebar-brand p {
-  display: none;
-}
-
 .sidebar .brand-mark {
   width: 38px;
   height: 38px;
@@ -1103,22 +1092,6 @@ button:focus, a:focus, input:focus, select:focus{box-shadow:0 0 0 3px rgba(14,16
     align-self: start;
   }
 
-  .dashboard-page .sidebar {
-    align-items: center;
-  }
-
-  .dashboard-page .sidebar-brand {
-    width: 100%;
-  }
-
-  .dashboard-page .sidebar-brand .brand-mark {
-    margin: 0 auto;
-  }
-
-  .dashboard-page .logout-btn,
-  .dashboard-page #logoutBtn {
-    align-self: center;
-  }
 }
 
 @media (max-width:640px){

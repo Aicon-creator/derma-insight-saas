@@ -6,33 +6,9 @@
     <title>Derma Insight | Dashboard</title>
     <link rel="stylesheet" href="./css/style.css" />
   </head>
-  <body class="dashboard-page">
+  <body class="dashboard-page" data-di-active-nav="overview">
     <div class="dashboard-layout">
-      <aside class="sidebar">
-        <div class="sidebar-brand">
-          <div class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" role="img" focusable="false">
-              <path d="M6.5 8.5c0-1.1.9-2 2-2h7c1.1 0 2 .9 2 2v7c0 1.1-.9 2-2 2h-7c-1.1 0-2-.9-2-2v-7Z" stroke="currentColor" stroke-width="1.8"/>
-              <path d="M9 10.25h6M9 13.75h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            </svg>
-          </div>
-          <div>
-            <h2>Derma Insight</h2>
-            <p>Merchant dashboard</p>
-          </div>
-        </div>
-
-        <nav class="sidebar-nav" aria-label="Dashboard navigation">
-        <a href="./dashboard.html" class="nav-link active" title="Overview"><span class="nav-icon">🏠</span><span class="label">Overview</span></a>
-        <a href="./dashboard.html#products" class="nav-link" title="Products"><span class="nav-icon">🧴</span><span class="label">Products</span></a>
-        <a href="./dashboard.html#recommendations" class="nav-link" title="Recommendations"><span class="nav-icon">💡</span><span class="label">Recommendations</span></a>
-        <a href="./dashboard.html#customers" class="nav-link" title="Customers"><span class="nav-icon">👥</span><span class="label">Customers</span></a>
-        <a href="./segment.html" class="nav-link" title="Segments"><span class="nav-icon">📊</span><span class="label">Segments</span></a>
-        <a href="./imports.html" class="nav-link" title="CSV Imports"><span class="nav-icon">📥</span><span class="label">CSV Imports</span></a>
-        </nav>
-
-        <button class="btn btn-logout" id="logoutBtn" type="button">Logout</button>
-      </aside>
+      <aside class="sidebar" data-di-sidebar></aside>
 
       <main class="main-content">
         <header class="topbar">
