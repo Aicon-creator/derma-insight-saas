@@ -1,5 +1,8 @@
 // Settings page - load/save business name and logo to localStorage
 (function(){
+  requireAuth();
+  if (typeof getMerchantToken === "function" && !getMerchantToken()) return;
+
   const form = document.getElementById('settingsForm');
   const businessNameInput = document.getElementById('businessName');
   const logoInput = document.getElementById('logoInput');

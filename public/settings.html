@@ -6,34 +6,39 @@
     <title>Settings - Derma Insight</title>
     <link rel="stylesheet" href="./css/style.css" />
   </head>
-  <body>
+  <body data-di-active-nav="settings">
     <div class="dashboard-layout">
-      <aside class="sidebar">
-        <div class="sidebar-brand">
-          <div class="brand-mark">DI</div>
-          <div>
-            <h2>Derma Insight</h2>
-            <p>Merchant dashboard</p>
-          </div>
-        </div>
-        <nav class="sidebar-nav" aria-label="Dashboard navigation">
-          <a href="./dashboard.html" class="nav-link">Overview</a>
-          <a href="./dashboard.html#products" class="nav-link">Products</a>
-          <a href="./dashboard.html#recommendations" class="nav-link">Recommendations</a>
-          <a href="./segment.html" class="nav-link">Segments</a>
-          <a href="./imports.html" class="nav-link">CSV Imports</a>
-        </nav>
-      </aside>
+      <aside class="sidebar" data-di-sidebar></aside>
 
       <main class="main-content">
         <header class="topbar">
           <div class="topbar-copy">
+            <button id="sidebarToggle" class="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar">
+              <span class="bar"></span>
+              <span class="bar"></span>
+              <span class="bar"></span>
+            </button>
+
             <div class="breadcrumbs">
               <h1>Settings</h1>
             </div>
             <p class="topbar-sub">Business profile and branding</p>
           </div>
-          <div class="topbar-actions"></div>
+
+          <div class="topbar-actions">
+            <div class="merchant-profile" id="merchantProfile" aria-haspopup="true">
+              <button id="merchantBtn" class="merchant-btn" aria-expanded="false">
+                <span class="avatar" id="merchantAvatar">DI</span>
+                <span class="merchant-name" id="merchantName">Merchant</span>
+                <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+
+              <div class="merchant-menu hidden" id="merchantMenu" role="menu">
+                <a href="./settings.html" class="menu-item" role="menuitem">Settings</a>
+                <button class="menu-item" id="logoutBtnSmall" role="menuitem">Logout</button>
+              </div>
+            </div>
+          </div>
         </header>
 
         <section class="card" style="max-width:640px">
@@ -57,6 +62,7 @@
       </main>
     </div>
 
+    <script src="./js/auth.js"></script>
     <script src="./js/api.js"></script>
     <script src="./js/layout.js"></script>
     <script src="./js/settings.js"></script>
