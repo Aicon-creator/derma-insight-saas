@@ -63,13 +63,18 @@
 
             <div class="imports-actions">
               <button id="previewBtn" class="btn btn-primary" type="submit">Preview CSV</button>
+              <button id="confirmImportBtn" class="btn btn-secondary" type="button" disabled>Confirm Import</button>
             </div>
+            <p id="confirmImportHint" class="imports-hint" aria-live="polite">
+              Preview a valid customer CSV to enable Confirm Import.
+            </p>
           </form>
         </section>
 
         <section class="card imports-result-card">
           <h2>Preview response</h2>
           <div id="previewMeta" class="imports-meta"></div>
+          <div id="importMeta" class="imports-meta" aria-live="polite"></div>
           <div id="previewRows" class="imports-preview-rows"></div>
           <div id="previewErrors" class="imports-preview-errors"></div>
         </section>

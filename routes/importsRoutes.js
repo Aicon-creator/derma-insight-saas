@@ -2,7 +2,7 @@ const express = require("express");
 const multer = require("multer");
 
 const merchantAuthMiddleware = require("../middleware/merchantAuthMiddleware");
-const { previewCsvImport } = require("../controllers/importsController");
+const { previewCsvImport, importCustomersCsv } = require("../controllers/importsController");
 const AppError = require("../utils/AppError");
 
 const router = express.Router();
@@ -35,6 +35,25 @@ const upload = multer({
   }
 });
 
-router.post("/csv/preview", protectMerchant, upload.single("file"), previewCsvImport);
+function handleCsvUpload(req, res, next) {
+  upload.single("file")(req, res, (error) => {
+    if (!error) {
+      return next();
+    }
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      return next(new AppError("CSV file exceeds the 5 MB limit.", 413));
+    }
+
+    if (error instanceof multer.MulterError) {
+      return next(new AppError("CSV upload failed.", 400));
+    }
+
+    return next(error);
+  });
+}
+
+router.post("/csv/preview", protectMerchant, handleCsvUpload, previewCsvImport);
+router.post("/csv/import", protectMerchant, handleCsvUpload, importCustomersCsv);
 
 module.exports = router;

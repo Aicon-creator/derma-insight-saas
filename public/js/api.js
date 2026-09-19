@@ -53,15 +53,21 @@ async function apiRequest(endpoint, options = {}) {
       window.location.replace("./index.html");
     }
 
-    throw new Error(data.message || "Your session has expired. Please log in again.");
+    const error = new Error(data.message || "Your session has expired. Please log in again.");
+    error.status = response.status;
+    error.responseData = data;
+    throw error;
   }
 
   if (!response.ok) {
-    throw new Error(
+    const error = new Error(
       data.message ||
       data.error ||
       `Request failed with status ${response.status}`
     );
+    error.status = response.status;
+    error.responseData = data;
+    throw error;
   }
 
   return data;
