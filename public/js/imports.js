@@ -10,10 +10,30 @@ const previewMeta = document.getElementById("previewMeta");
 const importMeta = document.getElementById("importMeta");
 const previewRows = document.getElementById("previewRows");
 const previewErrors = document.getElementById("previewErrors");
-const IMPORTABLE_DATA_TYPE = "customers";
+const IMPORTABLE_DATA_TYPES = new Set(["customers", "products"]);
 let previewState = null;
 let importInFlight = false;
 let importRequiresFreshPreview = false;
+
+function getDataTypeLabels(dataType) {
+  if (dataType === "products") {
+    return {
+      singular: "product",
+      plural: "products",
+      title: "Product"
+    };
+  }
+
+  return {
+    singular: "customer",
+    plural: "customers",
+    title: "Customer"
+  };
+}
+
+function isImportableDataType(dataType) {
+  return IMPORTABLE_DATA_TYPES.has(dataType);
+}
 
 function pluralize(count, singular, plural = `${singular}s`) {
   return Number(count) === 1 ? singular : plural;
@@ -119,46 +139,54 @@ function selectionMatchesPreview() {
   );
 }
 
-function formatImportSummary(result) {
+function formatImportSummary(result, dataType) {
+  const labels = getDataTypeLabels(dataType);
   const importedCount = Number(result.importedCount || 0);
   const skippedCount = Number(result.skippedCount || 0);
 
   if (importedCount === 0) {
-    return `No new customers were imported; ${skippedCount} existing ${pluralize(
+    return `No new ${labels.plural} were imported; ${skippedCount} existing ${pluralize(
       skippedCount,
-      "customer"
+      labels.singular
     )} ${skippedCount === 1 ? "was" : "were"} skipped.`;
   }
 
   if (skippedCount === 0) {
-    return `${importedCount} ${pluralize(importedCount, "customer")} imported.`;
+    return `${importedCount} ${pluralize(importedCount, labels.singular)} imported.`;
   }
 
   return `${importedCount} ${pluralize(
     importedCount,
-    "customer"
-  )} imported and ${skippedCount} existing ${pluralize(skippedCount, "customer")} skipped.`;
+    labels.singular
+  )} imported and ${skippedCount} existing ${pluralize(skippedCount, labels.singular)} skipped.`;
 }
 
 function updateConfirmImportState() {
   const selectedFile = getSelectedFile();
   const selectedDataType = dataTypeInput.value;
+  const labels = getDataTypeLabels(selectedDataType);
 
   confirmImportBtn.disabled = true;
 
   if (importInFlight) {
-    confirmImportHint.textContent = "Importing customers...";
+    confirmImportHint.textContent = `Importing ${labels.plural}...`;
     return;
   }
 
-  if (selectedDataType !== IMPORTABLE_DATA_TYPE) {
+  if (selectedDataType === "events") {
     confirmImportHint.textContent =
-      "Preview is available for this data type. Confirm Import for products and events is coming in a later stage.";
+      "Event import is coming next. Preview remains available for events.";
+    return;
+  }
+
+  if (!isImportableDataType(selectedDataType)) {
+    confirmImportHint.textContent =
+      "Preview is available for this data type. Confirm Import is currently unavailable.";
     return;
   }
 
   if (!selectedFile) {
-    confirmImportHint.textContent = "Choose a customer CSV file to preview.";
+    confirmImportHint.textContent = `Choose a ${labels.singular} CSV file to preview.`;
     return;
   }
 
@@ -169,7 +197,7 @@ function updateConfirmImportState() {
   }
 
   if (!previewState) {
-    confirmImportHint.textContent = "Preview a valid customer CSV to enable Confirm Import.";
+    confirmImportHint.textContent = `Preview a valid ${labels.singular} CSV to enable Confirm Import.`;
     return;
   }
 
@@ -185,7 +213,7 @@ function updateConfirmImportState() {
   }
 
   confirmImportBtn.disabled = false;
-  confirmImportHint.textContent = "Ready to import this customer CSV.";
+  confirmImportHint.textContent = `Ready to import this ${labels.singular} CSV.`;
 }
 
 csvPreviewForm.addEventListener("submit", async (event) => {
@@ -263,7 +291,8 @@ confirmImportBtn.addEventListener("click", async () => {
   importInFlight = true;
   confirmImportBtn.disabled = true;
   confirmImportBtn.textContent = "Importing...";
-  setImportMeta("Importing customers...", "neutral");
+  const labels = getDataTypeLabels(previewState.dataType);
+  setImportMeta(`Importing ${labels.plural}...`, "neutral");
   updateConfirmImportState();
 
   const formData = new FormData();
@@ -276,7 +305,7 @@ confirmImportBtn.addEventListener("click", async () => {
       body: formData
     });
 
-    setImportMeta(formatImportSummary(response), "success");
+    setImportMeta(formatImportSummary(response, previewState.dataType), "success");
     resetPreviewEligibility({
       preserveImportMessage: true,
       requireFreshPreview: true
@@ -287,7 +316,7 @@ confirmImportBtn.addEventListener("click", async () => {
         ? error.responseData.errors
         : [];
 
-    setImportMeta(error.message || "Customer import failed.", "error");
+    setImportMeta(error.message || `${labels.title} import failed.`, "error");
     if (importErrors.length > 0) {
       renderErrors(importErrors);
     }

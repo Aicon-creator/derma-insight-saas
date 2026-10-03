@@ -2,7 +2,7 @@ const express = require("express");
 const multer = require("multer");
 
 const merchantAuthMiddleware = require("../middleware/merchantAuthMiddleware");
-const { previewCsvImport, importCustomersCsv } = require("../controllers/importsController");
+const { previewCsvImport, importCsvData } = require("../controllers/importsController");
 const AppError = require("../utils/AppError");
 
 const router = express.Router();
@@ -54,6 +54,6 @@ function handleCsvUpload(req, res, next) {
 }
 
 router.post("/csv/preview", protectMerchant, handleCsvUpload, previewCsvImport);
-router.post("/csv/import", protectMerchant, handleCsvUpload, importCustomersCsv);
+router.post("/csv/import", protectMerchant, handleCsvUpload, importCsvData);
 
 module.exports = router;
