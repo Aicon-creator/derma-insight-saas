@@ -10,12 +10,20 @@ const previewMeta = document.getElementById("previewMeta");
 const importMeta = document.getElementById("importMeta");
 const previewRows = document.getElementById("previewRows");
 const previewErrors = document.getElementById("previewErrors");
-const IMPORTABLE_DATA_TYPES = new Set(["customers", "products"]);
+const IMPORTABLE_DATA_TYPES = new Set(["customers", "products", "events"]);
 let previewState = null;
 let importInFlight = false;
 let importRequiresFreshPreview = false;
 
 function getDataTypeLabels(dataType) {
+  if (dataType === "events") {
+    return {
+      singular: "event",
+      plural: "events",
+      title: "Event"
+    };
+  }
+
   if (dataType === "products") {
     return {
       singular: "product",
@@ -170,12 +178,6 @@ function updateConfirmImportState() {
 
   if (importInFlight) {
     confirmImportHint.textContent = `Importing ${labels.plural}...`;
-    return;
-  }
-
-  if (selectedDataType === "events") {
-    confirmImportHint.textContent =
-      "Event import is coming next. Preview remains available for events.";
     return;
   }
 

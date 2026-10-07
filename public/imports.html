@@ -44,7 +44,10 @@
 
         <section class="card imports-upload-card">
           <h2>Upload CSV for preview</h2>
-          <p class="imports-hint">This preview is read-only. It validates your file and returns the first 10 rows.</p>
+          <p class="imports-hint">
+            This preview is read-only. It validates your file and returns the first 10 rows. Event amount is
+            treated as unit price (revenue = amount × quantity).
+          </p>
 
           <form id="csvPreviewForm" class="imports-form">
             <div class="form-field">
@@ -66,7 +69,7 @@
               <button id="confirmImportBtn" class="btn btn-secondary" type="button" disabled>Confirm Import</button>
             </div>
             <p id="confirmImportHint" class="imports-hint" aria-live="polite">
-              Preview a valid customer or product CSV to enable Confirm Import.
+              Preview a valid customer, product, or event CSV to enable Confirm Import.
             </p>
           </form>
         </section>
