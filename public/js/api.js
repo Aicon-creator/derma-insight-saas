@@ -2,9 +2,11 @@ const API_BASE_URL = window.location.origin;
 
 async function apiRequest(endpoint, options = {}) {
   const token = localStorage.getItem("merchantToken");
+  const isFormDataBody =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
 
   const headers = {
-    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...(options.body && !isFormDataBody ? { "Content-Type": "application/json" } : {}),
     ...(options.headers || {})
   };
 
@@ -51,15 +53,21 @@ async function apiRequest(endpoint, options = {}) {
       window.location.replace("./index.html");
     }
 
-    throw new Error(data.message || "Your session has expired. Please log in again.");
+    const error = new Error(data.message || "Your session has expired. Please log in again.");
+    error.status = response.status;
+    error.responseData = data;
+    throw error;
   }
 
   if (!response.ok) {
-    throw new Error(
+    const error = new Error(
       data.message ||
       data.error ||
       `Request failed with status ${response.status}`
     );
+    error.status = response.status;
+    error.responseData = data;
+    throw error;
   }
 
   return data;

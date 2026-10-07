@@ -47,6 +47,8 @@ app.use(
 const allowedOrigins = [
   "http://127.0.0.1:5500",
   "http://localhost:5500",
+  `http://localhost:${process.env.PORT || 5001}`,
+  `http://127.0.0.1:${process.env.PORT || 5001}`,
   process.env.CLIENT_ORIGIN,
   process.env.RENDER_EXTERNAL_URL
 ].filter(Boolean);
@@ -121,6 +123,7 @@ const recommendationRoutes = require("./routes/recommendationRoutes");
 const customerRoutes = require("./routes/customerRoutes");
 const segmentRoutes = require("./routes/segmentRoutes");
 const shopifyRoutes = require("./routes/shopifyRoutes");
+const importsRoutes = require("./routes/importsRoutes");
 
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/merchants/auth", authLimiter, merchantAuthRoutes);
@@ -132,6 +135,7 @@ app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/segments", segmentRoutes);
 app.use("/api/shopify", shopifyRoutes);
+app.use("/api/imports", importsRoutes);
 
 /*
  * API information endpoint.

@@ -1,13 +1,5 @@
 requireAuth();
 
-const logoutBtn = document.getElementById("logoutBtn");
-
-if (logoutBtn) {
-  logoutBtn.addEventListener("click", () => {
-    logoutMerchant();
-  });
-}
-
 function formatCurrency(value) {
   return "£" + Number(value || 0).toFixed(2);
 }

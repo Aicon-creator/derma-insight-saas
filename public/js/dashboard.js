@@ -3,68 +3,6 @@ requireAuth();
 let currentRange = 30;
 let revenueChartInstance = null;
 
-// Sidebar state persistence
-const SIDEBAR_KEY = 'di_sidebar_collapsed';
-
-function isSidebarCollapsed(){
-  return localStorage.getItem(SIDEBAR_KEY) === '1';
-}
-
-function applySidebarState(){
-  const sidebar = document.querySelector('.sidebar');
-  if(!sidebar) return;
-  if(isSidebarCollapsed()) sidebar.classList.add('collapsed'); else sidebar.classList.remove('collapsed');
-}
-
-applySidebarState();
-
-// Logout handlers
-const logoutBtn = document.getElementById("logoutBtn");
-const logoutBtnSmall = document.getElementById("logoutBtnSmall");
-
-if (logoutBtn) {
-  logoutBtn.addEventListener("click", () => {
-    logoutMerchant();
-  });
-}
-if (logoutBtnSmall) {
-  logoutBtnSmall.addEventListener('click', ()=>{
-    logoutMerchant();
-  });
-}
-
-// Merchant profile render
-function renderMerchantProfile(){
-  try{
-    const raw = localStorage.getItem('merchantData');
-    if(!raw) return;
-    const md = JSON.parse(raw);
-    const nameEl = document.getElementById('merchantName');
-    const avatarEl = document.getElementById('merchantAvatar');
-    if(md.businessName){
-      if(nameEl) nameEl.textContent = md.businessName;
-      if(!md.logoDataUrl && avatarEl){
-        const initials = md.businessName.split(' ').slice(0,2).map(s=>s[0]).join('').toUpperCase();
-        avatarEl.textContent = initials;
-      }
-      if(md.logoDataUrl && avatarEl){
-        avatarEl.innerHTML = `<img src="${md.logoDataUrl}" alt="Logo" style="width:100%;height:100%;border-radius:50%;object-fit:cover"/>`;
-      }
-    }
-  }catch(e){/* ignore */}
-}
-
-renderMerchantProfile();
-
-// delegate keyboard focus for interactive rows
-document.addEventListener('keydown', (e)=>{
-  if(e.key === 'Escape'){
-    const menu = document.getElementById('merchantMenu');
-    if(menu) menu.classList.add('hidden');
-  }
-});
-
-
 function formatCurrency(value) {
   return `£${Number(value || 0).toFixed(2)}`;
 }

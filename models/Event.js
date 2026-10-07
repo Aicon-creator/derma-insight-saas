@@ -33,9 +33,21 @@ const eventSchema = new mongoose.Schema(
     currency: { type: String, default: "GBP" },
 
     sessionId: { type: String, default: null },
+    sourceEventId: { type: String, trim: true, default: null },
+    dedupeKey: { type: String, trim: true, default: null },
     occurredAt: { type: Date, default: Date.now, index: true },
   },
   { timestamps: true }
+);
+
+eventSchema.index(
+  { merchantId: 1, dedupeKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      dedupeKey: { $type: "string" }
+    }
+  }
 );
 
 module.exports = mongoose.models.Event || mongoose.model("Event", eventSchema);
