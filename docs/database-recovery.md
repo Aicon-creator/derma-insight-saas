@@ -27,6 +27,28 @@ The JSON contains aggregate counts and findings, without customer emails,
 product names, document IDs, account passwords, tokens, connection strings or
 hosts. Only that audit JSON is needed for the next engineering decision.
 
+If the command returns `status: "ERROR"`, it has not completed the audit.
+`connected` records whether the driver's initial connection succeeded;
+`phase` identifies the failing operation. `collection` is limited to the four
+application collection names, or `other`. Known driver error types and numeric
+MongoDB codes may be included, but raw errors, stacks and connection settings
+are never printed. A connection succeeding does not prove every read succeeded.
+
+Common safe diagnostic codes:
+
+| Code | Next check |
+| --- | --- |
+| `AUTHENTICATION_FAILED` | Check the database user's credentials and authentication database locally. |
+| `READ_PERMISSION_DENIED` | Check read access to the selected database and its index metadata. |
+| `DNS_LOOKUP_FAILED` | Check the configured host and local DNS/network access. |
+| `TLS_CONNECTION_FAILED` | Check clock, certificate trust and proxy configuration; retain certificate verification. |
+| `DATABASE_UNREACHABLE` | Check database availability, the current client IP allowlist and network access. This category alone does not prove the cause. |
+| `DATABASE_OPERATION_TIMED_OUT` | Investigate availability/read performance for the reported phase. |
+| `CHECK_IMPLEMENTATION_ERROR` | Return the safe JSON to the maintainer for a script fix. |
+
+Do not share `.env`, a connection URI or the raw driver message. Do not disable
+TLS verification or open database access to every IP as a troubleshooting shortcut.
+
 The audit checks:
 
 - Customer email identities after trim/lowercase and Product handles after the

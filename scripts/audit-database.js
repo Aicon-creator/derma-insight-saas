@@ -65,7 +65,8 @@ async function countInvalidReferences(collection, checks) {
   return Object.fromEntries(checks.map((check) => [check.key, Number(counts[check.key] || 0)]));
 }
 
-async function auditDatabase(db) {
+async function auditDatabase(db, { onStage = () => {} } = {}) {
+  onStage("list_collections");
   const existing = new Set((await db.listCollections({}, { nameOnly: true }).toArray()).map((item) => item.name));
   const report = { version: 1, checkedAt: new Date().toISOString(), readOnly: true,
     status: "PASS", backupRestoreVerified: false,
@@ -78,17 +79,21 @@ async function auditDatabase(db) {
       continue;
     }
     const collection = db.collection(name);
+    onStage("count_documents", name);
     const total = await collection.countDocuments({}, READ_OPTIONS);
     if (total > MAX_DOCUMENTS) throw new ReadinessError("AUDIT_SIZE_LIMIT", "A collection exceeds the 100000-document pilot audit limit. Use a planned batched audit.");
+    onStage("read_indexes", name);
     const indexes = await collection.listIndexes(READ_OPTIONS).toArray();
     const result = { exists: true, documentCount: total, indexCount: indexes.length };
     report.collections[name] = result;
     if (name === "merchants") continue;
     const field = identityFields[name];
+    onStage("scan_identities", name);
     const rows = await collection.find({}, { ...READ_OPTIONS, projection: { _id: 0, merchantId: 1, [field]: 1 } })
       .limit(MAX_DOCUMENTS + 1).toArray();
     if (rows.length > MAX_DOCUMENTS) throw new ReadinessError("AUDIT_SIZE_LIMIT", "Data grew beyond the pilot audit limit. Run during a quiet window.");
     if (rows.length !== total) report.issues.push(`${name}: data changed during the audit; rerun in a quiet window`);
+    onStage("check_identities", name);
     result.identities = inspectIdentities(rows, name);
     result.expectedUniqueIndexPresent = hasExpectedIndex(indexes, field);
     if (!result.expectedUniqueIndexPresent) report.issues.push(`${name}: expected merchant-scoped partial unique index not confirmed`);
@@ -97,6 +102,7 @@ async function auditDatabase(db) {
     }
     if (name === "products" && result.identities.missingIdentity > 0) report.issues.push("products: missing handles require review");
     if (name !== "products" && result.identities.missingIdentity > 0) report.notes.push(`${name}: records without an identity are outside that unique-index guarantee`);
+    onStage("check_references", name);
     result.invalidReferences = await countInvalidReferences(collection, [
       { from: "merchants", field: "merchantId", key: "missingMerchant", tenantScoped: false },
       ...(name === "events" ? [
