@@ -2,6 +2,7 @@ const Event = require("../models/Event");
 const Customer = require("../models/Customer");
 const Product = require("../models/Product");
 const mongoose = require("mongoose");
+const getAnalyticsWindow = require("../utils/analyticsWindow");
 
 function toRoundedRate(numerator, denominator) {
   if (denominator <= 0) {
@@ -13,12 +14,12 @@ function toRoundedRate(numerator, denominator) {
 
 function describePopularRecommendation(product) {
   if (Number(product.revenue || 0) > 0 && Number(product.purchases || 0) > 0) {
-    if (product.isTopRevenueProduct) {
-      return "Highest revenue in the selected period.";
+    if (product.isTopRevenueRecommendation) {
+      return "Highest revenue among these recommendations.";
     }
 
     if (Number(product.conversionRate || 0) >= 60) {
-      return "Strong purchase activity after product views in the selected period.";
+      return "A high share of product viewers also purchased in the selected period.";
     }
 
     return "Strong purchase activity in the selected period with revenue already proven.";
@@ -39,16 +40,9 @@ const getPopularRecommendations = async (req, res) => {
   try {
     const merchantId = req.merchant._id;
     const limit = Math.min(Number(req.query.limit || 5), 20);
-    const days = Number(req.query.days || 30);
-
-    const dateFilter =
-      days > 0
-        ? {
-            occurredAt: {
-              $gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
-            },
-          }
-        : {};
+    const period = getAnalyticsWindow(req.query.days);
+    const { days, startAt, endAt } = period;
+    const dateFilter = { occurredAt: { $gte: startAt, $lte: endAt } };
 
     const popularProducts = await Event.aggregate([
       {
@@ -156,6 +150,7 @@ const getPopularRecommendations = async (req, res) => {
       },
     ]);
 
+    // This comparison is limited to the score-ranked shortlist above.
     const maxRevenue = Math.max(
       0,
       ...popularProducts.map((product) => Number(product.revenue || 0))
@@ -172,7 +167,7 @@ const getPopularRecommendations = async (req, res) => {
         recommendationReason: describePopularRecommendation({
           ...product,
           conversionRate,
-          isTopRevenueProduct:
+          isTopRevenueRecommendation:
             maxRevenue > 0 && Number(product.revenue || 0) === maxRevenue,
         }),
       };
@@ -180,11 +175,12 @@ const getPopularRecommendations = async (req, res) => {
 
     return res.json({
       periodDays: days,
+      period,
       recommendations,
     });
   } catch (error) {
     console.error("POPULAR RECOMMENDATIONS ERROR:", error);
-    return res.status(500).json({ message: error.message });
+    return res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 

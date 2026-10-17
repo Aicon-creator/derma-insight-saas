@@ -53,6 +53,11 @@
           </div>
         </header>
 
+        <div class="section-header dashboard-load-status" aria-label="Dashboard loading status">
+          <p class="section-helper" id="dashboardStatus" role="status" aria-live="polite">Loading dashboard…</p>
+          <button class="btn btn-secondary hidden" id="retryDashboardBtn" type="button">Retry dashboard</button>
+        </div>
+
         <section id="newMerchantState" class="new-merchant-state hidden" aria-live="polite">
           <div>
             <span class="eyebrow">New merchant setup</span>
@@ -133,7 +138,7 @@
           <div class="card insight-card">
             <span class="insight-label">Top Product</span>
             <span class="insight-value" id="topProductInsight">Loading...</span>
-            <span class="insight-caption">Selected period</span>
+            <span class="insight-caption">Selected period · highest recorded revenue</span>
           </div>
 
           <div class="card insight-card">
@@ -145,7 +150,7 @@
           <div class="card insight-card">
             <span class="insight-label">Average Purchase Value</span>
             <span class="insight-value" id="averagePurchaseValueInsight">Loading...</span>
-            <span class="insight-caption">Selected period</span>
+            <span class="insight-caption">Selected period · revenue ÷ purchase events</span>
           </div>
 
           <div class="card insight-card">
@@ -174,29 +179,30 @@
             <h3>Data Coverage</h3>
             <span class="badge">Merchant scoped</span>
           </div>
+          <p class="section-helper">Customer and product coverage uses all recorded history. The selected window and its observed event dates are shown separately; event dates can stay the same when no additional events fall in a wider window.</p>
           <div class="coverage-grid">
             <div class="coverage-item">
-              <span class="coverage-label">Customers</span>
+              <span class="coverage-label">Customers · all time</span>
               <strong id="coverageTotalCustomers">--</strong>
             </div>
             <div class="coverage-item">
-              <span class="coverage-label">Customers with activity</span>
+              <span class="coverage-label">Customers with activity · all history</span>
               <strong id="coverageCustomersWithActivity">--</strong>
             </div>
             <div class="coverage-item">
-              <span class="coverage-label">Customers with no activity</span>
+              <span class="coverage-label">Customers with no activity · all history</span>
               <strong id="coverageCustomersWithoutActivity">--</strong>
             </div>
             <div class="coverage-item">
-              <span class="coverage-label">Products</span>
+              <span class="coverage-label">Products · all time</span>
               <strong id="coverageTotalProducts">--</strong>
             </div>
             <div class="coverage-item">
-              <span class="coverage-label">Products with activity</span>
+              <span class="coverage-label">Products with activity · all history</span>
               <strong id="coverageProductsWithActivity">--</strong>
             </div>
             <div class="coverage-item">
-              <span class="coverage-label">Products with no activity</span>
+              <span class="coverage-label">Products with no activity · all history</span>
               <strong id="coverageProductsWithoutActivity">--</strong>
             </div>
             <div class="coverage-item">
@@ -204,8 +210,16 @@
               <strong id="coverageEventsInPeriod">--</strong>
             </div>
             <div class="coverage-item">
-              <span class="coverage-label">Event date range</span>
+              <span class="coverage-label">Recorded event dates · all history (UTC)</span>
               <strong id="coverageEventRange">--</strong>
+            </div>
+            <div class="coverage-item">
+              <span class="coverage-label">Selected rolling window (UTC)</span>
+              <strong id="coverageSelectedWindow">--</strong>
+            </div>
+            <div class="coverage-item">
+              <span class="coverage-label">Recorded event dates · selected window (UTC)</span>
+              <strong id="coverageSelectedEventRange">--</strong>
             </div>
           </div>
         </section>
@@ -247,7 +261,7 @@
               <strong id="noActivityCustomersCount">--</strong>
             </div>
             <div class="summary-mini-card">
-              <span>Viewed, no purchase</span>
+              <span>Viewed, no purchase · all history</span>
               <strong id="viewedNoPurchaseCustomersCount">--</strong>
             </div>
           </div>
@@ -277,7 +291,7 @@
         <section id="products" class="card panel">
           <div class="section-header">
             <h3>Product Performance</h3>
-            <span class="badge">Top 5</span>
+            <span class="badge">Selected period</span>
           </div>
 
           <div id="topProductsList">
