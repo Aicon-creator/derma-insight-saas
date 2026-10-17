@@ -73,21 +73,59 @@
           <div class="card stat-card">
             <span class="stat-label">Total Customers</span>
             <span class="stat-value" id="totalCustomers">--</span>
+            <span class="stat-caption">All time</span>
           </div>
 
           <div class="card stat-card">
             <span class="stat-label">Total Products</span>
             <span class="stat-value" id="totalProducts">--</span>
+            <span class="stat-caption">All time</span>
           </div>
 
           <div class="card stat-card">
-            <span class="stat-label">Total Revenue</span>
+            <span class="stat-label">Revenue</span>
             <span class="stat-value" id="totalRevenue">--</span>
+            <span class="stat-caption">Selected period · purchase price × quantity</span>
           </div>
 
           <div class="card stat-card">
             <span class="stat-label">Conversion Rate</span>
             <span class="stat-value" id="conversionRate">--</span>
+            <span class="stat-caption" id="conversionRateCaption">
+              Selected period · waiting for viewer data
+            </span>
+          </div>
+        </section>
+
+        <section class="card activity-summary-card" aria-label="Commerce activity summary">
+          <div class="section-header">
+            <h3>Commerce activity</h3>
+            <span class="badge">Selected period</span>
+          </div>
+          <p class="section-helper" id="activityHelperText">
+            Counts reflect recorded event activity for the selected range. Conversion rate = unique viewers who also purchased ÷ unique viewers in the selected period.
+          </p>
+          <div class="activity-summary-grid">
+            <div class="card activity-card">
+              <span class="activity-label">View events</span>
+              <span class="activity-value" id="activityViews">--</span>
+            </div>
+            <div class="card activity-card">
+              <span class="activity-label">Add-to-cart events</span>
+              <span class="activity-value" id="activityAddToCart">--</span>
+            </div>
+            <div class="card activity-card">
+              <span class="activity-label">Purchase events</span>
+              <span class="activity-value" id="activityPurchases">--</span>
+            </div>
+            <div class="card activity-card">
+              <span class="activity-label">Customers with activity</span>
+              <span class="activity-value" id="activityCustomers">--</span>
+            </div>
+            <div class="card activity-card">
+              <span class="activity-label">Selected-period revenue</span>
+              <span class="activity-value" id="activityRevenue">--</span>
+            </div>
           </div>
         </section>
 
@@ -95,44 +133,91 @@
           <div class="card insight-card">
             <span class="insight-label">Top Product</span>
             <span class="insight-value" id="topProductInsight">Loading...</span>
-            <span class="insight-caption">Best seller</span>
+            <span class="insight-caption">Selected period</span>
           </div>
 
           <div class="card insight-card">
             <span class="insight-label">Top Skin Type</span>
             <span class="insight-value" id="topSkinTypeInsight">Loading...</span>
-            <span class="insight-caption">Largest segment</span>
+            <span class="insight-caption" id="topSkinTypeCaption">Customer base · all time</span>
           </div>
 
           <div class="card insight-card">
-            <span class="insight-label">Revenue Last 7 Days</span>
-            <span class="insight-value" id="revenueInsight">Loading...</span>
-            <span class="insight-caption">Last week</span>
+            <span class="insight-label">Average Purchase Value</span>
+            <span class="insight-value" id="averagePurchaseValueInsight">Loading...</span>
+            <span class="insight-caption">Selected period</span>
           </div>
 
           <div class="card insight-card">
             <span class="insight-label">Repeat Buyers</span>
             <span class="insight-value" id="repeatBuyerInsight">Loading...</span>
-            <span class="insight-caption">Returning customers</span>
+            <span class="insight-caption">All recorded history · 2+ purchase events</span>
           </div>
         </section>
 
         <section class="card chart-card" aria-label="Revenue over time">
           <div class="section-header">
             <h3>Revenue Overview</h3>
-            <span class="badge">Live trend</span>
+            <span class="badge">Daily totals</span>
           </div>
+          <p class="section-helper" id="chartHelperText">
+            Daily purchase revenue for the selected period. Dates without purchases remain visible at £0.
+          </p>
           <div class="chart-container">
             <canvas id="revenueChart"></canvas>
           </div>
           <div id="chartEmptyState" class="chart-empty hidden">No revenue data available for the selected timeframe.</div>
         </section>
 
+        <section class="card coverage-card" aria-label="Data coverage">
+          <div class="section-header">
+            <h3>Data Coverage</h3>
+            <span class="badge">Merchant scoped</span>
+          </div>
+          <div class="coverage-grid">
+            <div class="coverage-item">
+              <span class="coverage-label">Customers</span>
+              <strong id="coverageTotalCustomers">--</strong>
+            </div>
+            <div class="coverage-item">
+              <span class="coverage-label">Customers with activity</span>
+              <strong id="coverageCustomersWithActivity">--</strong>
+            </div>
+            <div class="coverage-item">
+              <span class="coverage-label">Customers with no activity</span>
+              <strong id="coverageCustomersWithoutActivity">--</strong>
+            </div>
+            <div class="coverage-item">
+              <span class="coverage-label">Products</span>
+              <strong id="coverageTotalProducts">--</strong>
+            </div>
+            <div class="coverage-item">
+              <span class="coverage-label">Products with activity</span>
+              <strong id="coverageProductsWithActivity">--</strong>
+            </div>
+            <div class="coverage-item">
+              <span class="coverage-label">Products with no activity</span>
+              <strong id="coverageProductsWithoutActivity">--</strong>
+            </div>
+            <div class="coverage-item">
+              <span class="coverage-label">Events in selected period</span>
+              <strong id="coverageEventsInPeriod">--</strong>
+            </div>
+            <div class="coverage-item">
+              <span class="coverage-label">Event date range</span>
+              <strong id="coverageEventRange">--</strong>
+            </div>
+          </div>
+        </section>
+
         <section id="recommendations" class="card">
           <div class="section-header">
-            <h3>Recommendations</h3>
-            <span class="badge">AI picks</span>
+            <h3>Data-driven Picks</h3>
+            <span class="badge">Product insights</span>
           </div>
+          <p class="section-helper">
+            Recommendations are ranked from recorded event activity in the selected period. They are not AI-generated.
+          </p>
 
           <div id="recommendationsList">
             <p class="empty-text">Loading recommendations...</p>
@@ -144,6 +229,28 @@
             <h3>Customer Intelligence</h3>
             <span class="badge">Live segments</span>
           </div>
+          <p class="section-helper" id="customerIntelligenceHelper">
+            Activity status buckets are mutually exclusive. Viewed-no-purchase, repeat buyer, and high-value signals can overlap with them.
+          </p>
+
+          <div class="customer-summary-grid">
+            <div class="summary-mini-card">
+              <span>Active customers</span>
+              <strong id="activeCustomersCount">--</strong>
+            </div>
+            <div class="summary-mini-card">
+              <span>Inactive customers</span>
+              <strong id="inactiveCustomersCount">--</strong>
+            </div>
+            <div class="summary-mini-card">
+              <span>No activity yet</span>
+              <strong id="noActivityCustomersCount">--</strong>
+            </div>
+            <div class="summary-mini-card">
+              <span>Viewed, no purchase</span>
+              <strong id="viewedNoPurchaseCustomersCount">--</strong>
+            </div>
+          </div>
 
           <div class="customer-section">
             <h4>Repeat Buyers</h4>
@@ -153,8 +260,15 @@
           </div>
 
           <div class="customer-section">
-            <h4>Inactive Users</h4>
+            <h4>Inactive Customers</h4>
             <div id="inactiveUsersList">
+              <p class="empty-text">Loading...</p>
+            </div>
+          </div>
+
+          <div class="customer-section">
+            <h4>No Activity Yet</h4>
+            <div id="noActivityCustomersList">
               <p class="empty-text">Loading...</p>
             </div>
           </div>

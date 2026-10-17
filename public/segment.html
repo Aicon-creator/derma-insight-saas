@@ -27,7 +27,7 @@
             <p class="topbar-sub">Understand your customer groups by value, activity, skin type and skincare concern.</p>
           </div>
 
-          <div class="topbar-actions">
+          <div class="topbar-actions segment-topbar-actions">
             <div class="segment-filters" aria-label="Segment filters">
               <label for="inactiveDaysFilter">Inactive after
                 <select id="inactiveDaysFilter">
@@ -68,33 +68,48 @@
           </div>
 
           <div class="segment-metric-card">
-            <span>Repeat Buyers</span>
-            <h3 id="segmentRepeatBuyers">0</h3>
-            <p>Customers with multiple purchases</p>
+            <span>Active Customers</span>
+            <h3 id="segmentActiveCustomers">0</h3>
+            <p>Recent event activity inside the selected window</p>
           </div>
 
           <div class="segment-metric-card warning">
             <span>Inactive Customers</span>
             <h3 id="segmentInactiveCustomers">0</h3>
-            <p>Customers who may need re-engagement</p>
+            <p>Historical activity, but outside the selected window</p>
+          </div>
+
+          <div class="segment-metric-card">
+            <span>No Activity Yet</span>
+            <h3 id="segmentNoActivityCustomers">0</h3>
+            <p>No recorded events yet</p>
           </div>
 
           <div class="segment-metric-card success">
             <span>High Value Customers</span>
             <h3 id="segmentHighValueCustomers">0</h3>
-            <p>Customers above your value threshold</p>
+            <p id="segmentHighValueLabel">Customers above your value threshold</p>
           </div>
 
           <div class="segment-metric-card">
-            <span>No Purchase Leads</span>
-            <h3 id="segmentNoPurchaseLeads">0</h3>
-            <p>Customers who haven't purchased yet</p>
+            <span>Viewed, No Purchase</span>
+            <h3 id="segmentViewedNoPurchaseCustomers">0</h3>
+            <p>Viewed at least once but never purchased</p>
+          </div>
+
+          <div class="segment-metric-card">
+            <span>Repeat Buyers</span>
+            <h3 id="segmentRepeatBuyers">0</h3>
+            <p>Customers with multiple purchases</p>
           </div>
         </section>
 
         <section class="segment-insight-panel">
           <h2>Segment insights</h2>
-          <p id="segmentInsightText">Loading customer insights...</p>
+          <div id="segmentInsightText" class="segment-insight-body">Loading customer insights...</div>
+          <p id="segmentDefinitionText" class="segment-definition-text">
+            Activity buckets are mutually exclusive. Viewed-no-purchase, repeat-buyer, and high-value lists can overlap with them.
+          </p>
         </section>
 
         <section class="segments-grid">
@@ -111,8 +126,20 @@
 
         <section class="segments-grid">
           <div class="segment-panel">
+            <h2>Active Customers</h2>
+            <div id="activeCustomersList"></div>
+          </div>
+
+          <div class="segment-panel">
             <h2>Repeat Buyers</h2>
             <div id="repeatBuyersList"></div>
+          </div>
+        </section>
+
+        <section class="segments-grid">
+          <div class="segment-panel">
+            <h2>Viewed, No Purchase</h2>
+            <div id="viewedNoPurchaseCustomersList"></div>
           </div>
 
           <div class="segment-panel">
@@ -127,8 +154,8 @@
         </section>
 
         <section class="segment-panel full-width">
-          <h2>No Purchase Leads</h2>
-          <div id="noPurchaseLeadsList"></div>
+          <h2>No Activity Yet</h2>
+          <div id="noActivityCustomersList"></div>
         </section>
       </main>
     </div>

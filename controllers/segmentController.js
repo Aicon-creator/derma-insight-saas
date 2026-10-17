@@ -27,11 +27,6 @@ exports.getCustomerSegments = async (req, res) => {
     const inactiveDays = Number(req.query.inactiveDays) || 30;
     const highValueThreshold = Number(req.query.highValue) || 100;
 
-    console.log("SEGMENT BACKEND FILTERS:", {
-      inactiveDays,
-      highValueThreshold
-    });
-
     const customers = await Customer.find({
       merchantId: merchantObjectId
     }).lean();
@@ -65,6 +60,12 @@ exports.getCustomerSegments = async (req, res) => {
           purchaseCount: {
             $sum: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] }
           },
+          viewCount: {
+            $sum: { $cond: [{ $eq: ["$type", "view"] }, 1, 0] }
+          },
+          addToCartCount: {
+            $sum: { $cond: [{ $eq: ["$type", "add_to_cart"] }, 1, 0] }
+          },
           lastPurchaseAt: {
             $max: {
               $cond: [{ $eq: ["$type", "purchase"] }, "$occurredAt", null]
@@ -83,10 +84,12 @@ exports.getCustomerSegments = async (req, res) => {
 
     const skinTypeSegments = {};
     const concernSegments = {};
+    const activeCustomers = [];
     const repeatBuyers = [];
     const inactiveCustomers = [];
+    const noActivityCustomers = [];
+    const viewedNoPurchaseCustomers = [];
     const highValueCustomers = [];
-    const noPurchaseLeads = [];
 
     customers.forEach((customer) => {
       const customerId = String(customer._id);
@@ -99,6 +102,16 @@ exports.getCustomerSegments = async (req, res) => {
       concernSegments[concern] = (concernSegments[concern] || 0) + 1;
 
       const lastActivityAt = stats?.lastActivityAt || null;
+      const purchaseCount = Number(stats?.purchaseCount || 0);
+      const viewCount = Number(stats?.viewCount || 0);
+      const addToCartCount = Number(stats?.addToCartCount || 0);
+      const hasActivity = Boolean(lastActivityAt);
+      const hasRecentActivity = hasActivity && new Date(lastActivityAt) >= cutoffDate;
+      const activityStatus = hasActivity
+        ? hasRecentActivity
+          ? "active"
+          : "inactive"
+        : "no_activity";
 
       const customerData = {
         id: customer._id,
@@ -107,28 +120,33 @@ exports.getCustomerSegments = async (req, res) => {
         skinType,
         concern,
         totalSpent: Number(stats?.totalSpent || 0),
-        purchaseCount: Number(stats?.purchaseCount || 0),
+        purchaseCount,
+        viewCount,
+        addToCartCount,
         lastPurchaseAt: stats?.lastPurchaseAt || null,
         lastActivityAt,
-        lastSeenAt: customer.lastSeenAt || null
+        lastSeenAt: customer.lastSeenAt || null,
+        activityStatus
       };
+
+      if (activityStatus === "active") {
+        activeCustomers.push(customerData);
+      }
 
       if (customerData.purchaseCount >= 2) {
         repeatBuyers.push(customerData);
       }
 
-      if (customerData.purchaseCount === 0) {
-        noPurchaseLeads.push(customerData);
+      if (activityStatus === "no_activity") {
+        noActivityCustomers.push(customerData);
       }
 
-      // Inactive = gone quiet, period — whether or not they ever bought.
-      // No recorded activity at all also counts as inactive.
-      const isStale = lastActivityAt
-        ? new Date(lastActivityAt) < cutoffDate
-        : true;
-
-      if (isStale) {
+      if (activityStatus === "inactive") {
         inactiveCustomers.push(customerData);
+      }
+
+      if (customerData.viewCount > 0 && customerData.purchaseCount === 0) {
+        viewedNoPurchaseCustomers.push(customerData);
       }
 
       if (customerData.totalSpent >= highValueThreshold) {
@@ -136,22 +154,27 @@ exports.getCustomerSegments = async (req, res) => {
       }
     });
 
+    activeCustomers.sort((a, b) => {
+      const dateA = a.lastActivityAt ? new Date(a.lastActivityAt) : new Date(0);
+      const dateB = b.lastActivityAt ? new Date(b.lastActivityAt) : new Date(0);
+
+      return dateB - dateA;
+    });
     repeatBuyers.sort((a, b) => b.totalSpent - a.totalSpent);
-
     highValueCustomers.sort((a, b) => b.totalSpent - a.totalSpent);
-
     inactiveCustomers.sort((a, b) => {
       const dateA = a.lastActivityAt ? new Date(a.lastActivityAt) : new Date(0);
       const dateB = b.lastActivityAt ? new Date(b.lastActivityAt) : new Date(0);
 
       return dateA - dateB;
     });
+    noActivityCustomers.sort((a, b) => a.name.localeCompare(b.name));
+    viewedNoPurchaseCustomers.sort((a, b) => {
+      if (b.viewCount !== a.viewCount) {
+        return b.viewCount - a.viewCount;
+      }
 
-    noPurchaseLeads.sort((a, b) => {
-      const dateA = a.lastActivityAt ? new Date(a.lastActivityAt) : new Date(0);
-      const dateB = b.lastActivityAt ? new Date(b.lastActivityAt) : new Date(0);
-
-      return dateA - dateB;
+      return a.name.localeCompare(b.name);
     });
 
     res.json({
@@ -159,21 +182,40 @@ exports.getCustomerSegments = async (req, res) => {
         inactiveDays,
         highValueThreshold
       },
-
+      definitions: {
+        activeCustomers:
+          "Customers with at least one event whose most recent activity falls within the selected activity window.",
+        inactiveCustomers:
+          "Customers with event history whose most recent activity falls outside the selected activity window.",
+        noActivityCustomers:
+          "Customers with no recorded event history yet.",
+        viewedNoPurchaseCustomers:
+          "Customers with at least one recorded view event and no recorded purchase events.",
+        repeatBuyers: "Customers with two or more purchase events.",
+        highValueCustomers:
+          "Customers whose total recorded purchase revenue meets or exceeds the selected high-value threshold.",
+        overlapNotes:
+          "Active, inactive, and no activity yet are mutually exclusive activity buckets. Viewed no purchase, repeat buyers, and high value can overlap with them."
+      },
       summary: {
         totalCustomers: customers.length,
+        activeCustomers: activeCustomers.length,
         repeatBuyers: repeatBuyers.length,
         inactiveCustomers: inactiveCustomers.length,
+        noActivityCustomers: noActivityCustomers.length,
+        viewedNoPurchaseCustomers: viewedNoPurchaseCustomers.length,
         highValueCustomers: highValueCustomers.length,
-        noPurchaseLeads: noPurchaseLeads.length
+        noPurchaseLeads: noActivityCustomers.length
       },
-
       skinTypeSegments,
       concernSegments,
+      activeCustomers,
       repeatBuyers,
       inactiveCustomers,
+      noActivityCustomers,
+      viewedNoPurchaseCustomers,
       highValueCustomers,
-      noPurchaseLeads
+      noPurchaseLeads: noActivityCustomers
     });
   } catch (error) {
     console.error("SEGMENT ERROR:", error);

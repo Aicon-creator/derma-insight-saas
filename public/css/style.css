@@ -58,7 +58,7 @@ body {
 img,
 svg {
   display: block;
-  max-width: 100%;
+  max-  width: 100%;
 }
 
 a {
@@ -615,6 +615,89 @@ select:focus-visible,
   font-size: 0.8rem;
 }
 
+.stat-card .stat-caption,
+.section-helper,
+.segment-definition-text {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.activity-summary-grid,
+.coverage-grid,
+.customer-summary-grid {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.activity-summary-card {
+  margin-bottom: 1.5rem;
+}
+
+.activity-summary-card .activity-summary-grid {
+  margin-top: 1rem;
+  margin-bottom: 0;
+}
+
+.activity-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.activity-card,
+.summary-mini-card,
+.coverage-item {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+  min-height: 110px;
+}
+
+.activity-card,
+.coverage-item {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.95rem 1rem;
+}
+
+.activity-label,
+.coverage-label,
+.summary-mini-card span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.activity-value,
+.summary-mini-card strong,
+.coverage-item strong {
+  color: var(--text);
+  font-size: clamp(1.15rem, 2vw, 1.7rem);
+  font-weight: 800;
+}
+
+.coverage-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.coverage-card {
+  margin-bottom: 1.5rem;
+}
+
+.customer-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.summary-mini-card {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1rem;
+}
+
 .section-header {
   display: flex;
   align-items: center;
@@ -694,6 +777,30 @@ select:focus-visible,
 .recommendation-item p {
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.recommendation-item {
+  align-items: flex-start;
+}
+
+.recommendation-badge {
+  white-space: nowrap;
+}
+
+.recommendation-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.recommendation-metrics span {
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(31, 122, 140, 0.08);
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .list-item small,
@@ -895,6 +1002,10 @@ select:focus-visible,
   .segments-grid {
    grid-template-columns: 1fr;
   }
+
+  .segment-topbar-actions {
+   width: 100%;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1067,6 +1178,9 @@ button:focus, a:focus, input:focus, select:focus{box-shadow:0 0 0 3px rgba(14,16
   .product-row{grid-template-columns:1.6fr 1fr 1fr 0.8fr 0.8fr 0.9fr 1fr 0.6fr}
   .drawer-grid{grid-template-columns:repeat(2,1fr)}
   .cards-grid{grid-template-columns:repeat(2,1fr)}
+  .activity-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .coverage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .customer-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
 @media (min-width: 901px) {
@@ -1101,6 +1215,10 @@ button:focus, a:focus, input:focus, select:focus{box-shadow:0 0 0 3px rgba(14,16
   .drawer-grid{grid-template-columns:1fr}
   .sidebar{display:none}
   .topbar-copy{gap:8px}
+  .activity-summary-grid,
+  .coverage-grid,
+  .customer-summary-grid{grid-template-columns:1fr}
+  .recommendation-item{flex-direction:column}
 }
 
 
@@ -1474,6 +1592,52 @@ button:focus, a:focus, input:focus, select:focus{box-shadow:0 0 0 3px rgba(14,16
   font-weight: 600;
 }
 
+/* Keep Segments controls in normal flow; long merchant names must not
+   squeeze the filter panel below the dropdowns' usable width. */
+body[data-di-active-nav="segments"] .segment-topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+body[data-di-active-nav="segments"] .segment-topbar-actions > .segment-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex: 1 1 20rem;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  grid-area: auto;
+}
+
+body[data-di-active-nav="segments"] .segment-topbar-actions .segment-filters label {
+  min-width: 0;
+}
+
+body[data-di-active-nav="segments"] .segment-topbar-actions .segment-filters select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+}
+
+body[data-di-active-nav="segments"] .segment-topbar-actions > .merchant-profile {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(100%, 18rem);
+  grid-area: auto;
+}
+
+body[data-di-active-nav="segments"] .segment-topbar-actions .avatar,
+body[data-di-active-nav="segments"] .segment-topbar-actions .chev {
+  flex-shrink: 0;
+}
+
 .segment-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1528,11 +1692,24 @@ button:focus, a:focus, input:focus, select:focus{box-shadow:0 0 0 3px rgba(14,16
 .segment-insight-panel h2 {
   font-size: 20px;
   margin-bottom: 8px;
+  color: #f8fafc;
 }
 
+.segment-insight-body {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.segment-insight-body p,
 .segment-insight-panel p {
   color: #cbd5e1;
   line-height: 1.6;
+  margin: 0;
+}
+
+.segment-definition-text {
+  margin-top: 0.95rem;
+  color: #e2e8f0;
 }
 
 .segment-panel {
@@ -1971,8 +2148,12 @@ body[data-di-active-nav] .chart-container canvas {
     max-width: none;
   }
 
-  body[data-di-active-nav] .topbar-actions {
+  body[data-di-active-nav] .topbar-actions:not(.segment-topbar-actions) {
     display: contents;
+  }
+
+  body[data-di-active-nav] .segment-topbar-actions {
+    grid-area: controls;
   }
 
   body[data-di-active-nav] .topbar-actions > .merchant-profile,
@@ -2044,7 +2225,7 @@ body[data-di-active-nav] .chart-container canvas {
   }
 
   body[data-di-active-nav] .topbar-copy,
-  body[data-di-active-nav] .topbar-actions,
+  body[data-di-active-nav] .topbar-actions:not(.segment-topbar-actions),
   body[data-di-active-nav] .topbar-actions > .topbar-tools {
     display: contents;
   }

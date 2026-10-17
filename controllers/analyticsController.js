@@ -12,6 +12,47 @@ function toRoundedRate(numerator, denominator) {
   return Number(((numerator / denominator) * 100).toFixed(2));
 }
 
+function formatUtcDateKey(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function buildDailySeries(days, rows) {
+  const now = new Date();
+  const start = new Date(now);
+  start.setUTCHours(0, 0, 0, 0);
+  start.setUTCDate(start.getUTCDate() - Math.max(days - 1, 0));
+
+  const rowMap = new Map(
+    rows.map((row) => [
+      row._id,
+      {
+        revenue: Number(row.revenue || 0),
+        purchases: Number(row.purchases || 0),
+      },
+    ])
+  );
+  const series = [];
+
+  for (let index = 0; index < days; index += 1) {
+    const currentDate = new Date(start);
+    currentDate.setUTCDate(start.getUTCDate() + index);
+    const dateKey = formatUtcDateKey(currentDate);
+    const row = rowMap.get(dateKey) || {
+      revenue: 0,
+      purchases: 0,
+    };
+
+    series.push({
+      _id: dateKey,
+      date: dateKey,
+      revenue: Number(row.revenue.toFixed(2)),
+      purchases: row.purchases,
+    });
+  }
+
+  return series;
+}
+
 function getMerchantId(req) {
   const merchantId =
     req.merchant?._id ||
@@ -35,7 +76,7 @@ function getMerchantId(req) {
 const getOverviewAnalytics = async (req, res) => {
   try {
     const merchantId = req.merchant._id;
-    const days = Number(req.query.days || 30);
+    const days = Math.max(Number(req.query.days || 30), 1);
 
     const cutoffDate = new Date(
       Date.now() - days * 24 * 60 * 60 * 1000
@@ -111,9 +152,66 @@ const getOverviewAnalytics = async (req, res) => {
       totalRevenue: 0,
     };
 
-    // Static totals (still fine separately)
-    const totalCustomers = await Customer.countDocuments({ merchantId });
-    const totalProducts = await Product.countDocuments({ merchantId });
+    const [
+      totalCustomers,
+      totalProducts,
+      allTimeActiveCustomerIds,
+      allTimeActiveProductIds,
+      selectedPeriodActiveCustomers,
+      eventCoverage,
+      skinTypeCounts,
+    ] = await Promise.all([
+      Customer.countDocuments({ merchantId }),
+      Product.countDocuments({ merchantId }),
+      Event.distinct("customerId", { merchantId }),
+      Event.distinct("productId", { merchantId }),
+      Event.aggregate([
+        {
+          $match: matchStage,
+        },
+        {
+          $group: {
+            _id: "$customerId",
+          },
+        },
+        {
+          $count: "count",
+        },
+      ]),
+      Event.aggregate([
+        {
+          $match: {
+            merchantId,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            earliestEventAt: { $min: "$occurredAt" },
+            latestEventAt: { $max: "$occurredAt" },
+          },
+        },
+      ]),
+      Customer.aggregate([
+        {
+          $match: {
+            merchantId,
+          },
+        },
+        {
+          $group: {
+            _id: "$skinType",
+            count: { $sum: 1 },
+          },
+        },
+        {
+          $sort: {
+            count: -1,
+            _id: 1,
+          },
+        },
+      ]),
+    ]);
 
     const conversionRate = toRoundedRate(
       result.uniquePurchasingViewers || 0,
@@ -159,6 +257,22 @@ const getOverviewAnalytics = async (req, res) => {
       },
     ]);
 
+    const averagePurchaseValue =
+      (result.totalPurchases || 0) > 0
+        ? Number((result.totalRevenue / result.totalPurchases).toFixed(2))
+        : 0;
+    const topSkinTypeCount = skinTypeCounts[0]?.count || 0;
+    const topSkinTypes = skinTypeCounts
+      .filter((row) => row.count === topSkinTypeCount && row.count > 0)
+      .map((row) => ({
+        skinType: row._id || "unknown",
+        count: row.count,
+        percentage: totalCustomers > 0 ? Number(((row.count / totalCustomers) * 100).toFixed(2)) : 0,
+      }));
+    const customersWithActivity = allTimeActiveCustomerIds.length;
+    const productsWithActivity = allTimeActiveProductIds.length;
+    const coverageRow = eventCoverage[0] || {};
+
     res.json({
       summary: {
         periodDays: days,
@@ -169,9 +283,16 @@ const getOverviewAnalytics = async (req, res) => {
         totalAddToCart: result.totalAddToCart,
         totalPurchases: result.totalPurchases,
         totalRevenue: Number(result.totalRevenue.toFixed(2)),
+        averagePurchaseValue,
         conversionRate,
         conversionRateRaw: conversionRate,
         conversionRateAnomaly,
+        uniqueViewers: result.uniqueViewers || 0,
+        uniquePurchasingViewers: result.uniquePurchasingViewers || 0,
+        customersWithActivityInPeriod: selectedPeriodActiveCustomers[0]?.count || 0,
+        conversionDefinition:
+          "Unique viewers who also purchased divided by unique viewers in the selected period.",
+        topSkinTypes,
 
         revenueLast7Days:
           revenueLast7.length > 0
@@ -183,9 +304,20 @@ const getOverviewAnalytics = async (req, res) => {
             ? Number(revenueLast30[0].total.toFixed(2))
             : 0,
       },
+      coverage: {
+        totalCustomers,
+        customersWithActivity,
+        customersWithoutActivity: Math.max(totalCustomers - customersWithActivity, 0),
+        totalProducts,
+        productsWithActivity,
+        productsWithoutActivity: Math.max(totalProducts - productsWithActivity, 0),
+        eventsInSelectedPeriod: result.totalEvents || 0,
+        earliestEventAt: coverageRow.earliestEventAt || null,
+        latestEventAt: coverageRow.latestEventAt || null,
+      },
     });
   } catch (error) {
-    console.log("ANALYTICS ERROR:", error);
+    console.error("ANALYTICS ERROR:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -421,7 +553,7 @@ const getTopProducts = async (req, res) => {
       qaWarnings,
     });
   } catch (error) {
-    console.log("TOP PRODUCTS ANALYTICS ERROR:", error);
+    console.error("TOP PRODUCTS ANALYTICS ERROR:", error);
     return res.status(500).json({ message: error.message });
   }
 };
@@ -645,7 +777,7 @@ const getSkinTypeAnalytics = async (req, res) => {
       qaWarnings,
     });
   } catch (error) {
-    console.log("SKIN TYPE ANALYTICS ERROR:", error);
+    console.error("SKIN TYPE ANALYTICS ERROR:", error);
     return res.status(500).json({ message: error.message });
   }
 };
@@ -869,7 +1001,7 @@ const getConcernAnalytics = async (req, res) => {
       qaWarnings,
     });
   } catch (error) {
-    console.log("CONCERN ANALYTICS ERROR:", error);
+    console.error("CONCERN ANALYTICS ERROR:", error);
     return res.status(500).json({ message: error.message });
   }
 };
@@ -878,7 +1010,7 @@ const getConcernAnalytics = async (req, res) => {
 const getRevenueOverTime = async (req, res) => {
   try {
     const merchantId = req.merchant._id;
-    const days = Number(req.query.days || 30);
+    const days = Math.max(Number(req.query.days || 30), 1);
 
     const cutoffDate = new Date(
       Date.now() - days * 24 * 60 * 60 * 1000
@@ -918,12 +1050,14 @@ const getRevenueOverTime = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
+    const filledData = buildDailySeries(days, data);
+
     res.json({
       periodDays: days,
-      data,
+      data: filledData,
     });
   } catch (error) {
-    console.log("REVENUE OVER TIME ERROR:", error);
+    console.error("REVENUE OVER TIME ERROR:", error);
     res.status(500).json({ message: error.message });
   }
 };
