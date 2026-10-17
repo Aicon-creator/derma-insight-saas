@@ -718,6 +718,21 @@ select:focus-visible,
   margin-bottom: 0;
 }
 
+.dashboard-load-status {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.dashboard-load-status .section-helper {
+  flex: 1 1 18rem;
+  margin: 0;
+}
+
+.main-content .is-unavailable {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
 .chart-card {
   padding: 1.1rem 1.1rem 0.7rem;
 }

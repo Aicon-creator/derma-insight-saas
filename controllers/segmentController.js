@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Customer = require("../models/Customer");
 const Event = require("../models/Event");
+const getAnalyticsWindow = require("../utils/analyticsWindow");
 
 exports.getCustomerSegments = async (req, res) => {
   try {
@@ -24,7 +25,8 @@ exports.getCustomerSegments = async (req, res) => {
       ? new mongoose.Types.ObjectId(merchantId)
       : merchantId;
 
-    const inactiveDays = Number(req.query.inactiveDays) || 30;
+    const period = getAnalyticsWindow(req.query.inactiveDays, "inactiveDays");
+    const inactiveDays = period.days;
     const highValueThreshold = Number(req.query.highValue) || 100;
 
     const customers = await Customer.find({
@@ -36,7 +38,8 @@ exports.getCustomerSegments = async (req, res) => {
     const activityStats = await Event.aggregate([
       {
         $match: {
-          merchantId: merchantObjectId
+          merchantId: merchantObjectId,
+          occurredAt: { $lte: period.endAt }
         }
       },
       {
@@ -79,8 +82,7 @@ exports.getCustomerSegments = async (req, res) => {
       activityStats.map((item) => [String(item._id), item])
     );
 
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - inactiveDays);
+    const cutoffDate = period.startAt;
 
     const skinTypeSegments = {};
     const concernSegments = {};
@@ -220,8 +222,8 @@ exports.getCustomerSegments = async (req, res) => {
   } catch (error) {
     console.error("SEGMENT ERROR:", error);
 
-    res.status(500).json({
-      message: "Failed to load customer segments"
+    res.status(error.statusCode || 500).json({
+      message: error.isOperational ? error.message : "Failed to load customer segments"
     });
   }
 };

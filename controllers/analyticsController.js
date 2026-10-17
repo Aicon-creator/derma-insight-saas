@@ -3,6 +3,7 @@ const Product = require("../models/Product");
 const Event = require("../models/Event");
 
 const mongoose = require("mongoose");
+const getAnalyticsWindow = require("../utils/analyticsWindow");
 
 function toRoundedRate(numerator, denominator) {
   if (denominator <= 0) {
@@ -16,8 +17,7 @@ function formatUtcDateKey(date) {
   return date.toISOString().slice(0, 10);
 }
 
-function buildDailySeries(cutoffDate, rows) {
-  const end = new Date();
+function buildDailySeries(cutoffDate, rows, end = new Date()) {
   const start = new Date(cutoffDate);
   start.setUTCHours(0, 0, 0, 0);
 
@@ -77,15 +77,12 @@ function getMerchantId(req) {
 const getOverviewAnalytics = async (req, res) => {
   try {
     const merchantId = req.merchant._id;
-    const days = Math.max(Number(req.query.days || 30), 1);
-
-    const cutoffDate = new Date(
-      Date.now() - days * 24 * 60 * 60 * 1000
-    );
+    const period = getAnalyticsWindow(req.query.days);
+    const { days, startAt: cutoffDate, endAt } = period;
 
     const matchStage = {
       merchantId,
-      occurredAt: { $gte: cutoffDate },
+      occurredAt: { $gte: cutoffDate, $lte: endAt },
     };
 
     // 🔥 ONE aggregation instead of multiple queries
@@ -160,6 +157,7 @@ const getOverviewAnalytics = async (req, res) => {
       allTimeActiveProductIds,
       selectedPeriodActiveCustomers,
       eventCoverage,
+      selectedEventCoverage,
       skinTypeCounts,
     ] = await Promise.all([
       Customer.countDocuments({ merchantId }),
@@ -185,6 +183,16 @@ const getOverviewAnalytics = async (req, res) => {
             merchantId,
           },
         },
+        {
+          $group: {
+            _id: null,
+            earliestEventAt: { $min: "$occurredAt" },
+            latestEventAt: { $max: "$occurredAt" },
+          },
+        },
+      ]),
+      Event.aggregate([
+        { $match: matchStage },
         {
           $group: {
             _id: null,
@@ -228,7 +236,8 @@ const getOverviewAnalytics = async (req, res) => {
           merchantId,
           type: "purchase",
           occurredAt: {
-            $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            $gte: new Date(endAt.getTime() - 7 * 24 * 60 * 60 * 1000),
+            $lte: endAt,
           },
         },
       },
@@ -246,7 +255,8 @@ const getOverviewAnalytics = async (req, res) => {
           merchantId,
           type: "purchase",
           occurredAt: {
-            $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+            $gte: new Date(endAt.getTime() - 30 * 24 * 60 * 60 * 1000),
+            $lte: endAt,
           },
         },
       },
@@ -273,8 +283,10 @@ const getOverviewAnalytics = async (req, res) => {
     const customersWithActivity = allTimeActiveCustomerIds.length;
     const productsWithActivity = allTimeActiveProductIds.length;
     const coverageRow = eventCoverage[0] || {};
+    const selectedCoverageRow = selectedEventCoverage[0] || {};
 
     res.json({
+      period,
       summary: {
         periodDays: days,
         totalCustomers,
@@ -313,13 +325,16 @@ const getOverviewAnalytics = async (req, res) => {
         productsWithActivity,
         productsWithoutActivity: Math.max(totalProducts - productsWithActivity, 0),
         eventsInSelectedPeriod: result.totalEvents || 0,
+        selectedPeriodEarliestEventAt: selectedCoverageRow.earliestEventAt || null,
+        selectedPeriodLatestEventAt: selectedCoverageRow.latestEventAt || null,
+        // Existing date fields remain all-history coverage for API compatibility.
         earliestEventAt: coverageRow.earliestEventAt || null,
         latestEventAt: coverageRow.latestEventAt || null,
       },
     });
   } catch (error) {
     console.error("ANALYTICS ERROR:", error);
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
@@ -327,17 +342,14 @@ const getTopProducts = async (req, res) => {
   try {
     const merchantId = req.merchant._id;
     const limit = Math.min(Number(req.query.limit || 5), 20);
-    const days = Number(req.query.days || 30);
-
-    const cutoffDate = new Date(
-      Date.now() - days * 24 * 60 * 60 * 1000
-    );
+    const period = getAnalyticsWindow(req.query.days);
+    const { days, startAt: cutoffDate, endAt } = period;
 
     const pipeline = [
       {
         $match: {
           merchantId,
-          occurredAt: { $gte: cutoffDate },
+          occurredAt: { $gte: cutoffDate, $lte: endAt },
         },
       },
       {
@@ -439,7 +451,7 @@ const getTopProducts = async (req, res) => {
       {
         $match: {
           merchantId,
-          occurredAt: { $gte: cutoffDate },
+          occurredAt: { $gte: cutoffDate, $lte: endAt },
         },
       },
       {
@@ -555,24 +567,21 @@ const getTopProducts = async (req, res) => {
     });
   } catch (error) {
     console.error("TOP PRODUCTS ANALYTICS ERROR:", error);
-    return res.status(500).json({ message: error.message });
+    return res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
 const getSkinTypeAnalytics = async (req, res) => {
   try {
     const merchantId = req.merchant._id;
-    const days = Number(req.query.days || 30);
-
-    const cutoffDate = new Date(
-      Date.now() - days * 24 * 60 * 60 * 1000
-    );
+    const period = getAnalyticsWindow(req.query.days);
+    const { days, startAt: cutoffDate, endAt } = period;
 
     const pipeline = [
       {
         $match: {
           merchantId,
-          occurredAt: { $gte: cutoffDate },
+          occurredAt: { $gte: cutoffDate, $lte: endAt },
         },
       },
       {
@@ -666,7 +675,7 @@ const getSkinTypeAnalytics = async (req, res) => {
       {
         $match: {
           merchantId,
-          occurredAt: { $gte: cutoffDate },
+          occurredAt: { $gte: cutoffDate, $lte: endAt },
         },
       },
       {
@@ -779,24 +788,21 @@ const getSkinTypeAnalytics = async (req, res) => {
     });
   } catch (error) {
     console.error("SKIN TYPE ANALYTICS ERROR:", error);
-    return res.status(500).json({ message: error.message });
+    return res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
 const getConcernAnalytics = async (req, res) => {
   try {
     const merchantId = req.merchant._id;
-    const days = Number(req.query.days || 30);
-
-    const cutoffDate = new Date(
-      Date.now() - days * 24 * 60 * 60 * 1000
-    );
+    const period = getAnalyticsWindow(req.query.days);
+    const { days, startAt: cutoffDate, endAt } = period;
 
     const pipeline = [
       {
         $match: {
           merchantId,
-          occurredAt: { $gte: cutoffDate },
+          occurredAt: { $gte: cutoffDate, $lte: endAt },
         },
       },
       {
@@ -890,7 +896,7 @@ const getConcernAnalytics = async (req, res) => {
       {
         $match: {
           merchantId,
-          occurredAt: { $gte: cutoffDate },
+          occurredAt: { $gte: cutoffDate, $lte: endAt },
         },
       },
       {
@@ -1003,7 +1009,7 @@ const getConcernAnalytics = async (req, res) => {
     });
   } catch (error) {
     console.error("CONCERN ANALYTICS ERROR:", error);
-    return res.status(500).json({ message: error.message });
+    return res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
@@ -1011,18 +1017,15 @@ const getConcernAnalytics = async (req, res) => {
 const getRevenueOverTime = async (req, res) => {
   try {
     const merchantId = req.merchant._id;
-    const days = Math.max(Number(req.query.days || 30), 1);
-
-    const cutoffDate = new Date(
-      Date.now() - days * 24 * 60 * 60 * 1000
-    );
+    const period = getAnalyticsWindow(req.query.days);
+    const { days, startAt: cutoffDate, endAt } = period;
 
     const data = await Event.aggregate([
       {
         $match: {
           merchantId,
           type: "purchase",
-          occurredAt: { $gte: cutoffDate },
+          occurredAt: { $gte: cutoffDate, $lte: endAt },
         },
       },
       {
@@ -1051,15 +1054,16 @@ const getRevenueOverTime = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
-    const filledData = buildDailySeries(cutoffDate, data);
+    const filledData = buildDailySeries(cutoffDate, data, endAt);
 
     res.json({
       periodDays: days,
+      period,
       data: filledData,
     });
   } catch (error) {
     console.error("REVENUE OVER TIME ERROR:", error);
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 

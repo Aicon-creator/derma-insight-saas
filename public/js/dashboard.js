@@ -2,6 +2,32 @@ requireAuth();
 
 let currentRange = 30;
 let revenueChartInstance = null;
+let dashboardRequestId = 0;
+
+const overviewValueIds = [
+  "totalCustomers", "totalProducts", "totalRevenue", "conversionRate",
+  "activityViews", "activityAddToCart", "activityPurchases", "activityCustomers",
+  "activityRevenue", "averagePurchaseValueInsight", "topSkinTypeInsight",
+  "coverageTotalCustomers", "coverageCustomersWithActivity", "coverageCustomersWithoutActivity",
+  "coverageTotalProducts", "coverageProductsWithActivity", "coverageProductsWithoutActivity",
+  "coverageEventsInPeriod", "coverageEventRange", "coverageSelectedEventRange", "coverageSelectedWindow"
+];
+const customerValueIds = [
+  "repeatBuyerInsight", "activeCustomersCount", "inactiveCustomersCount",
+  "noActivityCustomersCount", "viewedNoPurchaseCustomersCount"
+];
+
+function isCurrentDashboardRequest(request) {
+  return request.id === dashboardRequestId;
+}
+
+function setValues(ids, value) {
+  ids.forEach((id) => setText(id, value));
+}
+
+function recordPanelFailure(request, section) {
+  request.failedSections.push(section);
+}
 
 const newMerchantState = document.getElementById("newMerchantState");
 const generateDemoDataBtn = document.getElementById("generateDemoDataBtn");
@@ -31,6 +57,7 @@ function setText(elementId, value) {
 
   if (element) {
     element.textContent = value;
+    element.classList.toggle("is-unavailable", value === "Unavailable");
   }
 }
 
@@ -86,15 +113,28 @@ function formatChartLabel(dateValue) {
   );
 }
 
-function formatCoverageRange(earliestEventAt, latestEventAt) {
+function formatCoverageRange(earliestEventAt, latestEventAt, emptyMessage = "No recorded events yet") {
   const earliest = formatUtcDate(earliestEventAt);
   const latest = formatUtcDate(latestEventAt);
 
   if (!earliest || !latest) {
-    return "No event data yet";
+    return emptyMessage;
   }
 
   return `${earliest} to ${latest}`;
+}
+
+function formatSelectedWindow(period) {
+  const format = (value) => {
+    const date = new Date(value);
+    return !value || Number.isNaN(date.getTime()) ? null : date.toLocaleString("en-GB", {
+      timeZone: "UTC", day: "numeric", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit", hour12: false
+    });
+  };
+  const start = format(period?.startAt);
+  const end = format(period?.endAt);
+  return start && end ? `${start} to ${end} UTC` : "Window dates unavailable";
 }
 
 function formatTopSkinType(topSkinTypes) {
@@ -285,9 +325,10 @@ function debounce(fn, wait) {
   };
 }
 
-async function loadOverview() {
+async function loadOverview(request) {
   try {
-    const data = await apiRequest(`/api/analytics/overview?days=${currentRange}`);
+    const data = await apiRequest(`/api/analytics/overview?days=${request.days}`);
+    if (!isCurrentDashboardRequest(request)) return;
     const summary = data.summary || {};
     const coverage = data.coverage || {};
     const topSkinType = formatTopSkinType(summary.topSkinTypes);
@@ -336,6 +377,15 @@ async function loadOverview() {
       formatCount(coverage.productsWithoutActivity)
     );
     setText("coverageEventsInPeriod", formatCount(coverage.eventsInSelectedPeriod));
+    setText("coverageSelectedWindow", formatSelectedWindow(data.period));
+    setText(
+      "coverageSelectedEventRange",
+      formatCoverageRange(
+        coverage.selectedPeriodEarliestEventAt,
+        coverage.selectedPeriodLatestEventAt,
+        "No recorded events in this window"
+      )
+    );
     setText(
       "coverageEventRange",
       formatCoverageRange(coverage.earliestEventAt, coverage.latestEventAt)
@@ -343,44 +393,24 @@ async function loadOverview() {
 
     setText(
       "chartHelperText",
-      `Daily purchase revenue for the selected rolling ${currentRange}-day window. Dates without purchases stay visible at £0 and days are grouped by UTC date.`
+      `Daily purchase revenue for the selected rolling ${request.days}-day window. Dates without purchases stay visible at £0 and days are grouped by UTC date.`
     );
 
     return data;
   } catch (error) {
+    if (!isCurrentDashboardRequest(request)) return;
+    recordPanelFailure(request, "Overview");
     console.error("OVERVIEW ERROR:", error);
 
-    setText("totalCustomers", "0");
-    setText("totalProducts", "0");
-    setText("totalRevenue", formatCurrency(0));
-    setText("conversionRate", formatPercent(0));
-    setText("conversionRateCaption", "Selected period · No unique viewers in the selected period");
-    setText(
-      "activityHelperText",
-      "Counts reflect recorded event activity for the selected range. Conversion rate = unique viewers who also purchased divided by unique viewers in the selected period."
-    );
-    setText("activityViews", "0");
-    setText("activityAddToCart", "0");
-    setText("activityPurchases", "0");
-    setText("activityCustomers", "0");
-    setText("activityRevenue", formatCurrency(0));
-    setText("averagePurchaseValueInsight", formatCurrency(0));
-    setText("topSkinTypeInsight", "No data");
-    setText("topSkinTypeCaption", "Customer base · all time");
-    setText("coverageTotalCustomers", "0");
-    setText("coverageCustomersWithActivity", "0");
-    setText("coverageCustomersWithoutActivity", "0");
-    setText("coverageTotalProducts", "0");
-    setText("coverageProductsWithActivity", "0");
-    setText("coverageProductsWithoutActivity", "0");
-    setText("coverageEventsInPeriod", "0");
-    setText("coverageEventRange", "No event data yet");
+    setValues(overviewValueIds, "Unavailable");
+    setText("conversionRateCaption", "Could not load selected-period metrics.");
+    setText("activityHelperText", "Activity data could not be loaded. Retry the dashboard.");
 
     return null;
   }
 }
 
-async function loadTopProducts() {
+async function loadTopProducts(request) {
   const container = document.getElementById("topProductsList");
 
   if (!container) {
@@ -434,7 +464,8 @@ async function loadTopProducts() {
     </div>`;
 
   try {
-    const data = await apiRequest(`/api/analytics/top-products?limit=20&days=${currentRange}`);
+    const data = await apiRequest(`/api/analytics/top-products?limit=20&days=${request.days}`);
+    if (!isCurrentDashboardRequest(request)) return;
     const products = data.topProducts || [];
     const wrapper = container.querySelector(".product-table-wrapper");
 
@@ -589,14 +620,16 @@ async function loadTopProducts() {
 
     applyFiltersAndRender();
   } catch (error) {
+    if (!isCurrentDashboardRequest(request)) return;
+    recordPanelFailure(request, "Product performance");
     console.error("TOP PRODUCTS ERROR:", error);
-    setText("topProductInsight", "No data");
+    setText("topProductInsight", "Unavailable");
     container.querySelector(".product-table-wrapper").innerHTML =
       `<div class="empty-text">Failed to load product performance.</div>`;
   }
 }
 
-async function loadRecommendations() {
+async function loadRecommendations(request) {
   const container = document.getElementById("recommendationsList");
 
   if (!container) {
@@ -604,7 +637,8 @@ async function loadRecommendations() {
   }
 
   try {
-    const data = await apiRequest(`/api/recommendations/popular?limit=5&days=${currentRange}`);
+    const data = await apiRequest(`/api/recommendations/popular?limit=5&days=${request.days}`);
+    if (!isCurrentDashboardRequest(request)) return;
     const recommendations = data.recommendations || [];
 
     if (!recommendations.length) {
@@ -634,6 +668,8 @@ async function loadRecommendations() {
       `)
       .join("");
   } catch (error) {
+    if (!isCurrentDashboardRequest(request)) return;
+    recordPanelFailure(request, "Recommendations");
     console.error("RECOMMENDATIONS ERROR:", error);
     renderEmptyState(
       "recommendationsList",
@@ -642,11 +678,12 @@ async function loadRecommendations() {
   }
 }
 
-async function loadCustomerIntelligence() {
+async function loadCustomerIntelligence(request) {
   try {
     const data = await apiRequest(
-      `/api/segments?inactiveDays=${currentRange}&highValue=100`
+      `/api/segments?inactiveDays=${request.days}&highValue=100`
     );
+    if (!isCurrentDashboardRequest(request)) return;
     const summary = data.summary || {};
     const definitions = data.definitions || {};
 
@@ -683,12 +720,10 @@ async function loadCustomerIntelligence() {
       "No event history"
     );
   } catch (error) {
+    if (!isCurrentDashboardRequest(request)) return;
+    recordPanelFailure(request, "Customer intelligence");
     console.error("CUSTOMER INTELLIGENCE ERROR:", error);
-    setText("repeatBuyerInsight", "0");
-    setText("activeCustomersCount", "0");
-    setText("inactiveCustomersCount", "0");
-    setText("noActivityCustomersCount", "0");
-    setText("viewedNoPurchaseCustomersCount", "0");
+    setValues(customerValueIds, "Unavailable");
     renderEmptyState("repeatBuyersList", "Repeat buyer insights are unavailable right now.");
     renderEmptyState(
       "inactiveUsersList",
@@ -701,19 +736,19 @@ async function loadCustomerIntelligence() {
   }
 }
 
-function getTickStep() {
-  if (currentRange <= 7) {
+function getTickStep(days) {
+  if (days <= 7) {
     return 1;
   }
 
-  if (currentRange <= 30) {
+  if (days <= 30) {
     return 4;
   }
 
   return 10;
 }
 
-async function loadRevenueChart() {
+async function loadRevenueChart(request) {
   const canvas = document.getElementById("revenueChart");
   const chartEmptyState = document.getElementById("chartEmptyState");
 
@@ -722,7 +757,8 @@ async function loadRevenueChart() {
   }
 
   try {
-    const response = await apiRequest(`/api/analytics/revenue-over-time?days=${currentRange}`);
+    const response = await apiRequest(`/api/analytics/revenue-over-time?days=${request.days}`);
+    if (!isCurrentDashboardRequest(request)) return;
     const data = response.data || [];
     const hasRevenue = data.some((entry) => Number(entry.revenue || 0) > 0);
 
@@ -748,7 +784,7 @@ async function loadRevenueChart() {
     const rawDates = data.map((entry) => entry.date || entry._id);
     const values = data.map((entry) => Number(entry.revenue || 0));
     const purchases = data.map((entry) => Number(entry.purchases || 0));
-    const tickStep = getTickStep();
+    const tickStep = getTickStep(request.days);
 
     if (revenueChartInstance) {
       revenueChartInstance.destroy();
@@ -832,6 +868,8 @@ async function loadRevenueChart() {
       },
     });
   } catch (error) {
+    if (!isCurrentDashboardRequest(request)) return;
+    recordPanelFailure(request, "Revenue chart");
     console.error("REVENUE CHART ERROR:", error);
     canvas.style.display = "none";
     if (chartEmptyState) {
@@ -843,13 +881,48 @@ async function loadRevenueChart() {
 }
 
 async function loadDashboardData() {
+  const request = { id: ++dashboardRequestId, days: currentRange, failedSections: [] };
+  const retryButton = document.getElementById("retryDashboardBtn");
+  const dashboard = document.querySelector("main.main-content");
+  dashboard?.setAttribute("aria-busy", "true");
+  retryButton?.classList.add("hidden");
+  setText("dashboardStatus", `Loading the last ${request.days} days…`);
+  setValues(overviewValueIds, "—");
+  setValues(customerValueIds, "—");
+  setText("topProductInsight", "Loading…");
+  setText("conversionRateCaption", "Loading selected-period metrics…");
+  setText("activityHelperText", "Loading activity for the selected period…");
+  setText("topSkinTypeCaption", "Customer base · all time");
+  newMerchantState?.classList.add("hidden");
+  for (const id of ["recommendationsList", "repeatBuyersList", "inactiveUsersList", "noActivityCustomersList"]) {
+    renderEmptyState(id, "Loading…");
+  }
+  if (revenueChartInstance) {
+    revenueChartInstance.destroy();
+    revenueChartInstance = null;
+  }
+  const canvas = document.getElementById("revenueChart");
+  if (canvas) canvas.style.display = "none";
+  setText("chartEmptyState", "Loading revenue for the selected period…");
+  document.getElementById("chartEmptyState")?.classList.remove("hidden");
+  setText("chartHelperText", `Daily purchase revenue for the selected rolling ${request.days}-day window. Days are grouped by UTC date.`);
+
   await Promise.all([
-    loadOverview(),
-    loadTopProducts(),
-    loadRecommendations(),
-    loadCustomerIntelligence(),
-    loadRevenueChart(),
+    loadOverview(request),
+    loadTopProducts(request),
+    loadRecommendations(request),
+    loadCustomerIntelligence(request),
+    loadRevenueChart(request),
   ]);
+
+  if (!isCurrentDashboardRequest(request)) return;
+  dashboard?.setAttribute("aria-busy", "false");
+  if (request.failedSections.length) {
+    setText("dashboardStatus", `Some data could not be loaded: ${request.failedSections.join(", ")}. Retry to refresh the last ${request.days} days.`);
+    retryButton?.classList.remove("hidden");
+  } else {
+    setText("dashboardStatus", `Showing the last ${request.days} days. All-history metrics are labelled separately.`);
+  }
 }
 
 async function postSimulatorData(endpoint, body) {
@@ -874,6 +947,7 @@ async function postSimulatorData(endpoint, body) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("retryDashboardBtn")?.addEventListener("click", loadDashboardData);
   const dateRangeSelect = document.getElementById("dateRange");
 
   if (dateRangeSelect) {
