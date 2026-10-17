@@ -1,7 +1,7 @@
 const PHASES = new Set([
   "arguments", "configuration", "client_initialization", "connect", "database_access",
   "list_collections", "count_documents", "read_indexes", "scan_identities",
-  "check_identities", "scan_references", "check_references", "fingerprint_documents", "build_manifest", "output"
+  "check_identities", "scan_references", "check_references", "review_duplicates", "fingerprint_documents", "build_manifest", "output"
 ]);
 const COLLECTIONS = new Set(["merchants", "customers", "products", "events"]);
 const ERROR_TYPES = new Set([

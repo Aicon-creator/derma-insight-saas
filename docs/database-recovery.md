@@ -90,6 +90,42 @@ identities and every writer before enabling constraints, and test duplicate-key
 races and partial failures. Do not add raw-field indexes to dirty records and
 assume normalized identity is protected.
 
+### Review duplicate profiles and their Event references
+
+After an audit reports duplicate Customer emails, run this additional read-only
+review during a quiet window:
+
+```bash
+npm run --silent db:review-customer-duplicates -- --database dermaInsightDB
+```
+
+Use the same optional `--env-file PATH` as the audit. The output contains counts
+only: duplicate groups and extra records, affected merchant count, groups with
+differences in the named profile fields, and Event references distributed across
+the duplicate records. Counts also identify linked Events with dedupe keys and
+those lacking source Event IDs. Email grouping remains merchant-scoped and normalized.
+Customer names, emails, IDs, Shopify IDs and compared values are not printed.
+
+`groupsWithMatchingComparedFields` means only the listed fields match exactly;
+it does not prove that the records describe the same person. Missing and explicit
+null values are distinguished. Dates, unknown metadata and other collections are
+outside this comparison. No survivor is selected, no merge/deletion is approved,
+and records without an email are counted separately. The command performs no
+database writes and does not create indexes or backfill Event dedupe keys.
+
+The two projected document scans keep the audit's size/query limits and reject
+row-count drift. They are not a transactional snapshot. The summary is evidence
+for planning; actual records and conflicts must be reviewed privately before a
+migration. A tested backup/restore, preserved original records, explicit handling
+of all references and a verified rollback are required before applying changes.
+
+Missing Event dedupe keys do not prove duplicate Events. Do not infer IDs for old
+Events from timestamps/amounts and collapse potentially legitimate purchases.
+Future CSV/Shopify writers must establish source-aware replay identities.
+The current CSV fallback key includes the Customer ID. A later migration that
+reassigns Event references must explicitly preserve replay protection; blindly
+changing customer references or recomputing keys can change re-import behavior.
+
 ## 2. Record backup configuration
 
 Before any migration, the operator records privately:
