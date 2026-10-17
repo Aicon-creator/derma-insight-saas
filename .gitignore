@@ -20,3 +20,11 @@ Thumbs.db
 
 # Editor settings
 .vscode/
+
+# Private operational reports, connection configs and database backups
+private-ops/
+*.archive.gz
+*.archive
+*.bson
+*.bson.gz
+dump/
