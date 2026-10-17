@@ -49,20 +49,31 @@ function hasExpectedIndex(indexes, field) {
   });
 }
 
-function referenceLookup(from, field, output, tenantScoped) {
-  return { $lookup: { from, let: { target: `$${field}`, merchant: "$merchantId" },
-    pipeline: [{ $match: { $expr: { $and: [
-      { $eq: ["$_id", "$$target"] },
-      ...(tenantScoped ? [{ $eq: ["$merchantId", "$$merchant"] }] : [])
-    ] } } }, { $limit: 1 }, { $project: { _id: 1 } }], as: output } };
+function objectIdKey(value) {
+  return value instanceof ObjectId ? value.toHexString() : null;
 }
 
-async function countInvalidReferences(collection, checks) {
-  const pipeline = checks.map((check) => referenceLookup(check.from, check.field, check.key, check.tenantScoped));
-  pipeline.push({ $group: { _id: null, ...Object.fromEntries(checks.map((check) => [check.key,
-    { $sum: { $cond: [{ $eq: [{ $size: `$${check.key}` }, 0] }, 1, 0] } }])) } });
-  const [counts = {}] = await collection.aggregate(pipeline, READ_OPTIONS).toArray();
-  return Object.fromEntries(checks.map((check) => [check.key, Number(counts[check.key] || 0)]));
+function referenceIndex(rows) {
+  const index = new Map();
+  for (const row of rows) {
+    const id = objectIdKey(row._id);
+    if (id !== null) index.set(id, objectIdKey(row.merchantId));
+  }
+  return index;
+}
+
+function countInvalidReferences(rows, checks, referenceIndexes) {
+  return Object.fromEntries(checks.map((check) => {
+    const targets = referenceIndexes[check.from];
+    let invalid = 0;
+    for (const row of rows) {
+      const id = objectIdKey(row[check.field]);
+      const merchant = objectIdKey(row.merchantId);
+      if (id === null || !targets.has(id) ||
+        (check.tenantScoped && (merchant === null || targets.get(id) !== merchant))) invalid += 1;
+    }
+    return [check.key, invalid];
+  }));
 }
 
 async function auditDatabase(db, { onStage = () => {} } = {}) {
@@ -72,6 +83,7 @@ async function auditDatabase(db, { onStage = () => {} } = {}) {
     status: "PASS", backupRestoreVerified: false,
     scope: "Integrity checks only; backup settings, restoration and concurrent-write behavior require separate verification.",
     collections: Object.create(null), issues: [], notes: [] };
+  const scannedRows = Object.create(null);
   for (const name of CORE_COLLECTIONS) {
     if (!existing.has(name)) {
       report.collections[name] = { exists: false };
@@ -86,13 +98,20 @@ async function auditDatabase(db, { onStage = () => {} } = {}) {
     const indexes = await collection.listIndexes(READ_OPTIONS).toArray();
     const result = { exists: true, documentCount: total, indexCount: indexes.length };
     report.collections[name] = result;
-    if (name === "merchants") continue;
     const field = identityFields[name];
-    onStage("scan_identities", name);
-    const rows = await collection.find({}, { ...READ_OPTIONS, projection: { _id: 0, merchantId: 1, [field]: 1 } })
+    // Reuse the bounded identity scan for references. Parent collections need
+    // IDs and ownership only; no customer names or merchant credentials are read.
+    const projection = name === "merchants" ? { _id: 1 } : {
+      _id: name === "events" ? 0 : 1, merchantId: 1, [field]: 1,
+      ...(name === "events" ? { customerId: 1, productId: 1 } : {})
+    };
+    onStage(name === "merchants" ? "scan_references" : "scan_identities", name);
+    const rows = await collection.find({}, { ...READ_OPTIONS, projection })
       .limit(MAX_DOCUMENTS + 1).toArray();
     if (rows.length > MAX_DOCUMENTS) throw new ReadinessError("AUDIT_SIZE_LIMIT", "Data grew beyond the pilot audit limit. Run during a quiet window.");
     if (rows.length !== total) report.issues.push(`${name}: data changed during the audit; rerun in a quiet window`);
+    scannedRows[name] = rows;
+    if (name === "merchants") continue;
     onStage("check_identities", name);
     result.identities = inspectIdentities(rows, name);
     result.expectedUniqueIndexPresent = hasExpectedIndex(indexes, field);
@@ -102,14 +121,22 @@ async function auditDatabase(db, { onStage = () => {} } = {}) {
     }
     if (name === "products" && result.identities.missingIdentity > 0) report.issues.push("products: missing handles require review");
     if (name !== "products" && result.identities.missingIdentity > 0) report.notes.push(`${name}: records without an identity are outside that unique-index guarantee`);
+  }
+  // An Event can repeat the same customer/product reference many thousands of
+  // times. Checking in-memory maps avoids one correlated database join per row.
+  const referenceIndexes = Object.fromEntries(["merchants", "customers", "products"]
+    .map((name) => [name, referenceIndex(scannedRows[name] || [])]));
+  for (const name of ["customers", "products", "events"]) {
+    if (!scannedRows[name]) continue;
     onStage("check_references", name);
-    result.invalidReferences = await countInvalidReferences(collection, [
+    const result = report.collections[name];
+    result.invalidReferences = countInvalidReferences(scannedRows[name], [
       { from: "merchants", field: "merchantId", key: "missingMerchant", tenantScoped: false },
       ...(name === "events" ? [
         { from: "customers", field: "customerId", key: "missingOrCrossTenantCustomer", tenantScoped: true },
         { from: "products", field: "productId", key: "missingOrCrossTenantProduct", tenantScoped: true }
       ] : [])
-    ]);
+    ], referenceIndexes);
     if (Object.values(result.invalidReferences).some((value) => value > 0)) report.issues.push(`${name}: invalid or cross-merchant references require review`);
   }
   if (report.issues.length) report.status = "ACTION_REQUIRED";
