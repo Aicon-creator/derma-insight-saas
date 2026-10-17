@@ -3,6 +3,38 @@ const Customer = require("../models/Customer");
 const Product = require("../models/Product");
 const mongoose = require("mongoose");
 
+function toRoundedRate(numerator, denominator) {
+  if (denominator <= 0) {
+    return 0;
+  }
+
+  return Number(((numerator / denominator) * 100).toFixed(2));
+}
+
+function describePopularRecommendation(product) {
+  if (Number(product.revenue || 0) > 0 && Number(product.purchases || 0) > 0) {
+    if (product.isTopRevenueProduct) {
+      return "Highest revenue in the selected period.";
+    }
+
+    if (Number(product.conversionRate || 0) >= 60) {
+      return "Strong purchase activity after product views in the selected period.";
+    }
+
+    return "Strong purchase activity in the selected period with revenue already proven.";
+  }
+
+  if (Number(product.addToCart || 0) > Number(product.purchases || 0)) {
+    return "Growing interest with cart activity that has room to convert into more purchases.";
+  }
+
+  if (Number(product.views || 0) > 0 && Number(product.purchases || 0) === 0) {
+    return "Frequently viewed in the selected period, but purchases have not followed through yet.";
+  }
+
+  return "Strong recent engagement across customer interactions for this product.";
+}
+
 const getPopularRecommendations = async (req, res) => {
   try {
     const merchantId = req.merchant._id;
@@ -27,8 +59,25 @@ const getPopularRecommendations = async (req, res) => {
       },
       {
         $group: {
-          _id: { productId: "$productId", type: "$type" },
-          count: { $sum: 1 },
+          _id: {
+            productId: "$productId",
+            customerId: "$customerId",
+          },
+          views: {
+            $sum: {
+              $cond: [{ $eq: ["$type", "view"] }, 1, 0],
+            },
+          },
+          addToCart: {
+            $sum: {
+              $cond: [{ $eq: ["$type", "add_to_cart"] }, 1, 0],
+            },
+          },
+          purchases: {
+            $sum: {
+              $cond: [{ $eq: ["$type", "purchase"] }, 1, 0],
+            },
+          },
           revenue: {
             $sum: {
               $cond: [
@@ -38,27 +87,31 @@ const getPopularRecommendations = async (req, res) => {
               ],
             },
           },
+          viewed: {
+            $max: { $cond: [{ $eq: ["$type", "view"] }, 1, 0] },
+          },
+          purchased: {
+            $max: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] },
+          },
         },
       },
       {
         $group: {
           _id: "$_id.productId",
-          views: {
-            $sum: {
-              $cond: [{ $eq: ["$_id.type", "view"] }, "$count", 0],
-            },
-          },
-          addToCart: {
-            $sum: {
-              $cond: [{ $eq: ["$_id.type", "add_to_cart"] }, "$count", 0],
-            },
-          },
-          purchases: {
-            $sum: {
-              $cond: [{ $eq: ["$_id.type", "purchase"] }, "$count", 0],
-            },
-          },
+          views: { $sum: "$views" },
+          addToCart: { $sum: "$addToCart" },
+          purchases: { $sum: "$purchases" },
           revenue: { $sum: "$revenue" },
+          uniqueViewers: { $sum: "$viewed" },
+          uniquePurchasingViewers: {
+            $sum: {
+              $cond: [
+                { $and: [{ $gt: ["$viewed", 0] }, { $gt: ["$purchased", 0] }] },
+                1,
+                0,
+              ],
+            },
+          },
         },
       },
       {
@@ -97,18 +150,40 @@ const getPopularRecommendations = async (req, res) => {
           purchases: 1,
           revenue: { $round: ["$revenue", 2] },
           score: 1,
-          recommendationReason:
-            "High engagement and purchase activity for this product.",
+          uniqueViewers: 1,
+          uniquePurchasingViewers: 1,
         },
       },
     ]);
 
+    const maxRevenue = Math.max(
+      0,
+      ...popularProducts.map((product) => Number(product.revenue || 0))
+    );
+    const recommendations = popularProducts.map((product) => {
+      const conversionRate = toRoundedRate(
+        product.uniquePurchasingViewers || 0,
+        product.uniqueViewers || 0
+      );
+
+      return {
+        ...product,
+        conversionRate,
+        recommendationReason: describePopularRecommendation({
+          ...product,
+          conversionRate,
+          isTopRevenueProduct:
+            maxRevenue > 0 && Number(product.revenue || 0) === maxRevenue,
+        }),
+      };
+    });
+
     return res.json({
       periodDays: days,
-      recommendations: popularProducts,
+      recommendations,
     });
   } catch (error) {
-    console.log("POPULAR RECOMMENDATIONS ERROR:", error);
+    console.error("POPULAR RECOMMENDATIONS ERROR:", error);
     return res.status(500).json({ message: error.message });
   }
 };
@@ -198,7 +273,7 @@ const getAlsoViewedRecommendations = async (req, res) => {
       recommendations,
     });
   } catch (error) {
-    console.log("ALSO VIEWED RECOMMENDATIONS ERROR:", error);
+    console.error("ALSO VIEWED RECOMMENDATIONS ERROR:", error);
     return res.status(500).json({ message: error.message });
   }
 };
@@ -293,7 +368,7 @@ const getAlsoBoughtRecommendations = async (req, res) => {
       recommendations,
     });
   } catch (error) {
-    console.log("ALSO BOUGHT RECOMMENDATIONS ERROR:", error);
+    console.error("ALSO BOUGHT RECOMMENDATIONS ERROR:", error);
     return res.status(500).json({ message: error.message });
   }
 };
@@ -437,7 +512,7 @@ const getRecommendationsForCustomer = async (req, res) => {
       recommendations,
     });
   } catch (error) {
-    console.log("CUSTOMER RECOMMENDATIONS ERROR:", error);
+    console.error("CUSTOMER RECOMMENDATIONS ERROR:", error);
     return res.status(500).json({ message: error.message });
   }
 };
