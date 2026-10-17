@@ -16,11 +16,10 @@ function formatUtcDateKey(date) {
   return date.toISOString().slice(0, 10);
 }
 
-function buildDailySeries(days, rows) {
-  const now = new Date();
-  const start = new Date(now);
+function buildDailySeries(cutoffDate, rows) {
+  const end = new Date();
+  const start = new Date(cutoffDate);
   start.setUTCHours(0, 0, 0, 0);
-  start.setUTCDate(start.getUTCDate() - Math.max(days - 1, 0));
 
   const rowMap = new Map(
     rows.map((row) => [
@@ -33,9 +32,11 @@ function buildDailySeries(days, rows) {
   );
   const series = [];
 
-  for (let index = 0; index < days; index += 1) {
+  for (
     const currentDate = new Date(start);
-    currentDate.setUTCDate(start.getUTCDate() + index);
+    currentDate <= end;
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1)
+  ) {
     const dateKey = formatUtcDateKey(currentDate);
     const row = rowMap.get(dateKey) || {
       revenue: 0,
@@ -1050,7 +1051,7 @@ const getRevenueOverTime = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
-    const filledData = buildDailySeries(days, data);
+    const filledData = buildDailySeries(cutoffDate, data);
 
     res.json({
       periodDays: days,

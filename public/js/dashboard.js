@@ -566,10 +566,11 @@ async function loadTopProducts() {
       }
 
       const [field, direction] = sort.split("_");
+      const sortField = field === "conversion" ? "conversionRate" : field;
       filtered.sort((a, b) => {
         const multiplier = direction === "asc" ? 1 : -1;
-        const left = Number(a[field] || 0);
-        const right = Number(b[field] || 0);
+        const left = Number(a[sortField] || 0);
+        const right = Number(b[sortField] || 0);
 
         if (left !== right) {
           return (left - right) * multiplier;
