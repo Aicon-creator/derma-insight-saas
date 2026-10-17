@@ -17,14 +17,14 @@ const productId = new ObjectId("507f1f77bcf86cd799439014");
 const primaryIndex = { name: "_id_", key: { _id: 1 } };
 const uniqueIndex = (field) => ({ name: `merchantId_1_${field}_1`, key: { merchantId: 1, [field]: 1 },
   unique: true, partialFilterExpression: { [field]: { $type: "string" } } });
-const same = (left, right) => canonicalJson(left) === canonicalJson(right);
 
-// Only read operations exist on this fake. An unexpected write or aggregation
-// stage fails the tests instead of reaching any database.
+// Only bounded reads exist on this fake. A write or database join fails the
+// tests instead of reaching any database.
 function database(specification) {
   const calls = [];
+  const scans = [];
   const db = {
-    calls,
+    calls, scans,
     listCollections() { calls.push("listCollections"); return { toArray: async () => Object.entries(specification)
       .map(([name, info]) => ({ name, type: info.type || "collection", options: info.options || {} })) }; },
     collection(name) {
@@ -34,29 +34,19 @@ function database(specification) {
         listIndexes() { calls.push("listIndexes"); return { toArray: async () => info.indexes || [primaryIndex] }; },
         find(query, options) {
           calls.push("find");
+          const scan = { collection: name, query, options };
+          scans.push(scan);
           if (!options.projection) assert.equal(options.promoteValues, false, "Recovery scans must preserve BSON numeric types");
           let rows = info.rows.slice();
           if (options.projection) rows = rows.map((row) => Object.fromEntries(Object.entries(options.projection)
             .filter(([, value]) => value === 1).map(([key]) => [key, row[key]])));
           const cursor = {
             sort() { rows.sort((left, right) => String(left._id).localeCompare(String(right._id))); return this; },
-            limit(value) { rows = rows.slice(0, value); return this; },
+            limit(value) { scan.limit = value; rows = rows.slice(0, value); return this; },
             batchSize() { return this; }, async toArray() { return rows; },
             async *[Symbol.asyncIterator]() { for (const row of rows) yield row; }
           };
           return cursor;
-        },
-        aggregate(pipeline) {
-          calls.push("aggregate");
-          assert.ok(pipeline.every((stage) => Object.keys(stage).every((key) => ["$lookup", "$group"].includes(key))));
-          const counts = {};
-          for (const { $lookup: lookup } of pipeline.filter((stage) => stage.$lookup)) {
-            const field = lookup.let.target.slice(1);
-            const tenantScoped = lookup.pipeline[0].$match.$expr.$and.length === 2;
-            counts[lookup.as] = info.rows.filter((row) => !(specification[lookup.from]?.rows || []).some((target) =>
-              same(target._id, row[field]) && (!tenantScoped || same(target.merchantId, row.merchantId)))).length;
-          }
-          return { toArray: async () => [counts] };
         }
       }, { get(target, key) {
         if (!(key in target)) throw new Error(`Unexpected database operation: ${String(key)}`);
@@ -141,6 +131,82 @@ test("a completed audit checks installed indexes and references without emitting
   assert.equal(report.collections.events.invalidReferences.missingOrCrossTenantCustomer, 0);
   assert.ok(db.calls.includes("listIndexes"));
   assert.doesNotMatch(JSON.stringify(report), /private-|507f1f77|example.com|mongodb:/);
+});
+
+test("10000 repeated Event references use one bounded scan per collection and no database joins", async () => {
+  const spec = healthyData();
+  const event = spec.events.rows[0];
+  spec.events.rows = Array.from({ length: 10000 }, (_, i) => ({ ...event,
+    merchantId: new ObjectId(a.toHexString()), customerId: new ObjectId(customerId.toHexString()),
+    productId: new ObjectId(productId.toHexString()), dedupeKey: `event-${i}` }));
+  const db = database(spec);
+  const report = await auditDatabase(db);
+  assert.equal(report.status, "PASS");
+  assert.equal(report.collections.events.documentCount, 10000);
+  assert.deepEqual(report.collections.events.invalidReferences, {
+    missingMerchant: 0, missingOrCrossTenantCustomer: 0, missingOrCrossTenantProduct: 0
+  });
+  assert.equal(db.scans.length, 4);
+  assert.deepEqual(db.scans.map((scan) => scan.collection), ["merchants", "customers", "products", "events"]);
+  for (const scan of db.scans) {
+    assert.equal(scan.options.maxTimeMS, 10000);
+    assert.equal(scan.limit, MAX_DOCUMENTS + 1);
+  }
+  assert.deepEqual(db.scans.map((scan) => scan.options.projection), [
+    { _id: 1 }, { _id: 1, merchantId: 1, email: 1 },
+    { _id: 1, merchantId: 1, handle: 1 },
+    { _id: 0, merchantId: 1, dedupeKey: 1, customerId: 1, productId: 1 }
+  ]);
+});
+
+test("repeated broken references count every Event and preserve tenant and BSON type checks", async () => {
+  const spec = healthyData();
+  const otherCustomer = new ObjectId();
+  const missingProduct = new ObjectId();
+  const missingMerchant = new ObjectId();
+  spec.customers.rows.push({ _id: otherCustomer, merchantId: b, email: "other-customer@example.com" });
+  const event = spec.events.rows[0];
+  const repeat = (count, overrides) => Array.from({ length: count }, () => ({ ...event, ...overrides }));
+  spec.events.rows = [event,
+    ...repeat(2, { customerId: otherCustomer }),
+    ...repeat(3, { productId: missingProduct }),
+    ...repeat(4, { merchantId: missingMerchant }),
+    ...repeat(5, { customerId: customerId.toHexString(), productId: productId.toHexString() })
+  ].map((row, i) => ({ ...row, dedupeKey: `event-${i}` }));
+  const report = await auditDatabase(database(spec));
+  assert.equal(report.status, "ACTION_REQUIRED");
+  assert.equal(report.collections.events.documentCount, 15);
+  assert.deepEqual(report.collections.events.invalidReferences, {
+    missingMerchant: 4, missingOrCrossTenantCustomer: 11, missingOrCrossTenantProduct: 12
+  });
+  assert.doesNotMatch(JSON.stringify(report), /other-customer|private-|507f1f77|example.com/);
+});
+
+test("empty collections produce zero broken references without a join or missing-parent exception", async () => {
+  const spec = healthyData();
+  for (const info of Object.values(spec)) info.rows = [];
+  const db = database(spec);
+  const report = await auditDatabase(db);
+  assert.equal(report.status, "PASS");
+  assert.deepEqual(report.collections.events.invalidReferences, {
+    missingMerchant: 0, missingOrCrossTenantCustomer: 0, missingOrCrossTenantProduct: 0
+  });
+  assert.equal(db.scans.length, 4);
+});
+
+test("reference scans reject growth beyond the cap rather than auditing a truncated subset", async () => {
+  const spec = healthyData();
+  spec.events.count = 0;
+  spec.events.rows = Array(MAX_DOCUMENTS + 1).fill(spec.events.rows[0]);
+  await assert.rejects(auditDatabase(database(spec)), { code: "AUDIT_SIZE_LIMIT" });
+});
+
+test("row-count drift during reference scans cannot produce an audit pass", async () => {
+  const spec = healthyData();
+  spec.merchants.count = 3;
+  const report = await auditDatabase(database(spec));
+  assert.equal(report.status, "ACTION_REQUIRED");
+  assert.ok(report.issues.includes("merchants: data changed during the audit; rerun in a quiet window"));
 });
 
 test("missing indexes, duplicates and cross-tenant references prevent an audit pass", async () => {

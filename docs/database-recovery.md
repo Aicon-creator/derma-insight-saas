@@ -61,6 +61,17 @@ The audit checks:
 - Missing collections, an unexpected row-count change during the scan, and a
   100,000-document limit per collection. Large databases need a planned batch audit.
 
+The audit reads each application collection once with a narrow projection,
+reusing identity fields and parent IDs for reference checks in memory. It avoids
+per-Event database joins and counts every affected source record, including
+repeated broken references. References must be BSON ObjectIds, as required by the
+application models; an ID-shaped string is not accepted as an ObjectId. Parent
+IDs, ownership and customer/product identity values stay in the local process and
+are not printed. Each database read retains its 10-second limit and every scan
+is capped at 100,001 rows to detect growth beyond the audit limit. A timeout or
+incomplete scan is an error, never a successful audit. These reads are not a
+transactional snapshot; run during a quiet window and investigate drift findings.
+
 Exit codes are `0` for a completed audit without blocking findings, `2` for
 `ACTION_REQUIRED`, and `1` when a check cannot complete. Missing Customer/Product
 unique indexes are expected to produce findings until a reviewed migration runs.
