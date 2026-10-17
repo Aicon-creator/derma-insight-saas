@@ -1,5 +1,9 @@
 const express = require("express");
 const router = express.Router();
+const { blockProductionDemo } = require("../middleware/productionGuards");
+
+// Run before authentication or controllers so no demo database work can begin.
+router.use(blockProductionDemo);
 
 const protectMerchant = require("../middleware/merchantAuthMiddleware");
 

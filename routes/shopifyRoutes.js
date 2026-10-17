@@ -1,6 +1,11 @@
 // routes/shopifyRoutes.js
 const express = require("express");
 const router = express.Router();
+const { blockProductionShopify } = require("../middleware/productionGuards");
+
+// Includes the public OAuth callback; never exchange credentials in production
+// until the secure connection and sync implementation replaces this gate.
+router.use(blockProductionShopify);
 const protectMerchant = require("../middleware/merchantAuthMiddleware");
 const { connectShopify, shopifyCallback, syncShopifyData } = require("../controllers/shopifyController");
 
