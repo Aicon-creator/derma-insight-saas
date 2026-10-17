@@ -7,6 +7,7 @@
     "dev": "nodemon server.js",
     "test": "node --test",
     "db:audit": "node scripts/audit-database.js",
+    "db:review-customer-duplicates": "node scripts/review-customer-duplicates.js",
     "db:manifest": "node scripts/database-manifest.js",
     "db:compare-manifests": "node scripts/compare-database-manifests.js"
   },
