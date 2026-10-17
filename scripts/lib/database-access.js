@@ -3,6 +3,7 @@ const crypto = require("node:crypto");
 const { parseArgs } = require("node:util");
 const dotenv = require("dotenv");
 const { MongoClient, BSON, ObjectId } = require("mongoose").mongo;
+const { safeStage, databaseDiagnostic } = require("./database-diagnostics");
 
 const MAX_DOCUMENTS = 100000;
 const READ_OPTIONS = { maxTimeMS: 10000 };
@@ -71,21 +72,29 @@ function logicalIndexes(indexes) {
 
 async function runDatabaseCommand(task, usage, argv = process.argv.slice(2)) {
   let client;
+  let stage = { phase: "arguments", connected: false };
+  const onStage = (phase, collection) => { stage = { ...safeStage(phase, collection), connected: stage.connected }; };
   try {
     const { values } = parseArgs({ args: argv, options: {
       database: { type: "string" }, "env-file": { type: "string" },
       "writes-paused": { type: "boolean", default: false }, help: { type: "boolean" }
     } });
     if (values.help) { console.log(usage); return; }
+    onStage("configuration");
     const settings = connectionSettings(values);
+    onStage("client_initialization");
     client = new MongoClient(settings.uri, {
       appName: "DermaInsightReadOnlyReadiness", serverSelectionTimeoutMS: 10000,
       connectTimeoutMS: 10000, socketTimeoutMS: 20000, retryWrites: false, readPreference: "primary"
     });
+    onStage("connect");
     await client.connect();
+    stage.connected = true;
+    onStage("database_access");
     const report = await task(client.db(settings.database), {
-      writesPaused: values["writes-paused"], targetFingerprint: targetFingerprint(client, settings.database)
+      writesPaused: values["writes-paused"], targetFingerprint: targetFingerprint(client, settings.database), onStage
     });
+    onStage("output");
     console.log(JSON.stringify(report, null, 2));
     process.exitCode = report.status === "ACTION_REQUIRED" ? 2 : 0;
   } catch (error) {
@@ -93,8 +102,7 @@ async function runDatabaseCommand(task, usage, argv = process.argv.slice(2)) {
     // Never print their messages or stack traces.
     const safe = error instanceof ReadinessError;
     console.log(JSON.stringify({ status: "ERROR", readOnly: true,
-      code: safe ? error.code : "DATABASE_CHECK_FAILED",
-      message: safe ? error.message : "The read-only check could not complete. Check connection, read permissions and tool arguments locally." }, null, 2));
+      ...(safe ? { code: error.code, message: error.message, ...stage } : databaseDiagnostic(error, stage)) }, null, 2));
     process.exitCode = 1;
   } finally {
     if (client) await client.close().catch(() => {});
