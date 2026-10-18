@@ -6,6 +6,7 @@ const Event = require("../models/Event");
 const Product = require("../models/Product");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
+const { normalizedIdentityExpression, importIdentityRows } = require("../services/importIdentityRows");
 
 const MAX_DATA_ROWS = 1000;
 const PREVIEW_ROW_LIMIT = 10;
@@ -700,11 +701,7 @@ async function buildEventImportRows(rows, merchantId, existingErrors = []) {
           },
           {
             $project: {
-              normalizedEmail: {
-                $toLower: {
-                  $ifNull: ["$email", ""]
-                }
-              }
+              normalizedEmail: normalizedIdentityExpression("email")
             }
           },
           {
@@ -733,11 +730,7 @@ async function buildEventImportRows(rows, merchantId, existingErrors = []) {
           },
           {
             $project: {
-              normalizedHandle: {
-                $toLower: {
-                  $ifNull: ["$handle", ""]
-                }
-              }
+              normalizedHandle: normalizedIdentityExpression("handle")
             }
           },
           {
@@ -956,188 +949,19 @@ const previewCsvImport = asyncHandler(async (req, res) => {
 });
 
 async function importCustomers(importPreview, merchantId) {
-  const customerDocuments = importPreview.rows.map((row) => mapCustomerRowToDocument(row, merchantId));
-  const normalizedEmails = customerDocuments.map((customer) => customer.email);
-
-  const existingCustomers = await Customer.aggregate([
-    {
-      $match: {
-        merchantId
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        normalizedEmail: {
-          $toLower: {
-            $ifNull: ["$email", ""]
-          }
-        }
-      }
-    },
-    {
-      $match: {
-        normalizedEmail: {
-          $in: normalizedEmails
-        }
-      }
-    }
-  ]);
-
-  const existingEmailSet = new Set(
-    existingCustomers.map((customer) => customer.normalizedEmail).filter(Boolean)
-  );
-  const newCustomers = customerDocuments.filter((customer) => !existingEmailSet.has(customer.email));
-  const initiallySkippedCount = customerDocuments.length - newCustomers.length;
-
-  if (newCustomers.length === 0) {
-    return {
-      statusCode: 200,
-      body: {
-        message: "No new customers were imported.",
-        dataType: importPreview.dataType,
-        fileName: importPreview.fileName,
-        totalRows: importPreview.totalRows,
-        importedCount: 0,
-        skippedCount: importPreview.totalRows,
-        failedCount: 0,
-        errors: []
-      }
-    };
-  }
-
-  const operations = newCustomers.map((customer) => ({
-    updateOne: {
-      filter: {
-        merchantId,
-        email: customer.email
-      },
-      update: {
-        $setOnInsert: customer
-      },
-      upsert: true
-    }
-  }));
-
-  let bulkResult;
-
-  try {
-    bulkResult = await Customer.bulkWrite(operations, {
-      ordered: true
-    });
-  } catch (error) {
-    console.error("CUSTOMER IMPORT ERROR:", error.message);
-    throw new AppError("Customer import failed. Please try again.", 500);
-  }
-
-  const importedCount = Number(bulkResult.upsertedCount || 0);
-  const skippedCount = initiallySkippedCount + (newCustomers.length - importedCount);
-
-  return {
-    statusCode: 200,
-    body: {
-      message: importedCount > 0 ? "Customer import complete." : "No new customers were imported.",
-      dataType: importPreview.dataType,
-      fileName: importPreview.fileName,
-      totalRows: importPreview.totalRows,
-      importedCount,
-      skippedCount,
-      failedCount: 0,
-      errors: []
-    }
-  };
+  return importIdentityRows({
+    model: Customer, field: "email", merchantId,
+    documents: importPreview.rows.map((row) => mapCustomerRowToDocument(row, merchantId)),
+    dataType: importPreview.dataType, fileName: importPreview.fileName
+  });
 }
 
 async function importProducts(importPreview, merchantId) {
-  const productDocuments = importPreview.rows.map((row) => mapProductRowToDocument(row, merchantId));
-  const normalizedHandles = productDocuments.map((product) => product.handle);
-
-  const existingProducts = await Product.aggregate([
-    {
-      $match: {
-        merchantId
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        normalizedHandle: {
-          $toLower: {
-            $ifNull: ["$handle", ""]
-          }
-        }
-      }
-    },
-    {
-      $match: {
-        normalizedHandle: {
-          $in: normalizedHandles
-        }
-      }
-    }
-  ]);
-
-  const existingHandleSet = new Set(
-    existingProducts.map((product) => product.normalizedHandle).filter(Boolean)
-  );
-  const newProducts = productDocuments.filter((product) => !existingHandleSet.has(product.handle));
-  const initiallySkippedCount = productDocuments.length - newProducts.length;
-
-  if (newProducts.length === 0) {
-    return {
-      statusCode: 200,
-      body: {
-        message: "No new products were imported.",
-        dataType: importPreview.dataType,
-        fileName: importPreview.fileName,
-        totalRows: importPreview.totalRows,
-        importedCount: 0,
-        skippedCount: importPreview.totalRows,
-        failedCount: 0,
-        errors: []
-      }
-    };
-  }
-
-  const operations = newProducts.map((product) => ({
-    updateOne: {
-      filter: {
-        merchantId,
-        handle: product.handle
-      },
-      update: {
-        $setOnInsert: product
-      },
-      upsert: true
-    }
-  }));
-
-  let bulkResult;
-
-  try {
-    bulkResult = await Product.bulkWrite(operations, {
-      ordered: true
-    });
-  } catch (error) {
-    throw new AppError("Product import failed. Please try again.", 500);
-  }
-
-  const importedCount = Number(bulkResult.upsertedCount || 0);
-  const skippedCount = initiallySkippedCount + (newProducts.length - importedCount);
-
-  return {
-    statusCode: 200,
-    body: {
-      message: importedCount > 0 ? "Product import complete." : "No new products were imported.",
-      dataType: importPreview.dataType,
-      fileName: importPreview.fileName,
-      totalRows: importPreview.totalRows,
-      importedCount,
-      skippedCount,
-      failedCount: 0,
-      errors: []
-    }
-  };
+  return importIdentityRows({
+    model: Product, field: "handle", merchantId,
+    documents: importPreview.rows.map((row) => mapProductRowToDocument(row, merchantId)),
+    dataType: importPreview.dataType, fileName: importPreview.fileName
+  });
 }
 
 function isDuplicateKeyError(error) {
