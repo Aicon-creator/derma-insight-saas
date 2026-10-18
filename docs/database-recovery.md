@@ -83,12 +83,23 @@ records are outside the partial unique index. Missing Product handles require
 review. Event dedupe keys are case-sensitive; email/handle identities are not.
 Product comparison uses stored handles, not a guess from product titles.
 
-The current Customer/Product import paths use pre-checks and upserts, without a
-database uniqueness guarantee in their model declarations. Their existing-record
-queries lowercase values without trimming. The next migration must align stored
-identities and every writer before enabling constraints, and test duplicate-key
-races and partial failures. Do not add raw-field indexes to dirty records and
-assume normalized identity is protected.
+The Customer/Product CSV paths normalize new identities and trim/lowercase
+existing-identity lookups. Event reference lookups use the same expression.
+They use unordered insert-only bulk upserts. A duplicate-key error is a skip only
+when a subsequent merchant-scoped read confirms the expected identity; another
+merchant's record is not confirmation. Matched upserts leave existing profiles
+and timestamps untouched. Acknowledged partial results retain imported/skipped
+counts and original CSV row errors. Uncertain writes return `503` with explicit
+`unconfirmedCount`; they are never described as zero writes. The UI requires a
+fresh preview before another import attempt.
+
+These safeguards do not replace database uniqueness constraints. Customer and
+Product model declarations still have no such guarantee. The migration must
+align stored identities and every writer, resolve existing duplicates, then
+install the reviewed indexes. Rehearse actual concurrent imports on the isolated
+target; simulated collisions do not prove the installed database is protected.
+Do not add raw-field indexes to dirty records and assume normalized identity is
+protected.
 
 ### Review duplicate profiles and their Event references
 
