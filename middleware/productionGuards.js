@@ -1,5 +1,4 @@
-// Keep destructive demo tools and the unfinished Shopify flow out of production.
-// There is deliberately no environment flag that can bypass these guards.
+// Destructive demo generation can never be enabled in production.
 const blockInProduction = (message, statusCode) => (req, res, next) => {
   if (process.env.NODE_ENV === "production") {
     res.set("Cache-Control", "no-store");
@@ -14,9 +13,4 @@ const blockProductionDemo = blockInProduction(
   403
 );
 
-const blockProductionShopify = blockInProduction(
-  "Shopify connections and sync are temporarily unavailable while we complete the secure integration.",
-  503
-);
-
-module.exports = { blockProductionDemo, blockProductionShopify };
+module.exports = { blockProductionDemo };

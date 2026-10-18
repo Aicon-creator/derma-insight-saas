@@ -12,6 +12,8 @@ const customerSchema = new mongoose.Schema(
     firstName: { type: String, default: "Test" },
     lastName: { type: String, default: "Customer" },
     email: { type: String, default: null },
+    shopifyCustomerId: { type: String, default: null },
+    shopifyStoreDomain: { type: String, default: null },
 
     skinType: {
       type: String,
@@ -29,7 +31,12 @@ const customerSchema = new mongoose.Schema(
 
     lastSeenAt: { type: Date, default: null },
   },
-  { timestamps: true }
+  { timestamps: true, autoIndex: false }
 );
+
+customerSchema.index({ merchantId: 1, email: 1 }, { unique: true, partialFilterExpression: { email: { $type: "string" } } });
+customerSchema.index({ merchantId: 1, shopifyStoreDomain: 1, shopifyCustomerId: 1 }, {
+  unique: true, partialFilterExpression: { shopifyCustomerId: { $type: "string" } }
+});
 
 module.exports = mongoose.models.Customer || mongoose.model("Customer", customerSchema);

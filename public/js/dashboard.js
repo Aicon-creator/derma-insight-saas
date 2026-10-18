@@ -44,6 +44,10 @@ function formatPercent(value) {
   return `${Number(value || 0).toFixed(1)}%`;
 }
 
+function formatViewerRate(item) {
+  return item.conversionAvailable === false ? "Not available" : formatPercent(item.conversionRate);
+}
+
 function capitalizeWords(value) {
   return String(value || "")
     .split(/\s+/)
@@ -198,7 +202,7 @@ function describeCustomerMeta(customer) {
   }
 
   if (customer.purchaseCount >= 2) {
-    parts.push(`${formatCount(customer.purchaseCount)} purchase events`);
+    parts.push(`${formatCount(customer.purchaseCount)} orders / separate purchases`);
   }
 
   if (Number(customer.totalSpent || 0) > 0) {
@@ -280,7 +284,7 @@ function openProductDetail(product) {
             <div><strong>Add to cart</strong><div>${formatCount(product.addToCart)}</div></div>
             <div><strong>Purchases</strong><div>${formatCount(product.purchases)}</div></div>
             <div><strong>Revenue</strong><div>${formatCurrency(product.revenue)}</div></div>
-            <div><strong>Viewer-to-buyer rate</strong><div>${formatPercent(product.conversionRate)}</div></div>
+            <div><strong>Viewer-to-buyer rate</strong><div>${formatViewerRate(product)}</div></div>
           </div>
           <p class="muted">Selected period only. Viewer-to-buyer rate uses unique purchasers divided by unique viewers.</p>
         </div>
@@ -344,7 +348,10 @@ async function loadOverview(request) {
     setText("totalCustomers", formatCount(summary.totalCustomers));
     setText("totalProducts", formatCount(summary.totalProducts));
     setText("totalRevenue", formatCurrency(summary.totalRevenue));
-    setText("conversionRate", formatPercent(summary.conversionRate));
+    setText("conversionRate", formatViewerRate(summary));
+    const unlinkedNote = (summary.guestPurchaseLines || summary.unknownProductPurchaseLines)
+      ? ` ${formatCount(summary.guestPurchaseLines)} guest purchase lines and ${formatCount(summary.unknownProductPurchaseLines)} lines without a current product record are included in revenue; they cannot populate every customer/product insight.` : "";
+    setText("dashboardSourceNote", (summary.sourceNote || "Revenue reflects the purchase amounts in your imported events.") + unlinkedNote);
     setText(
       "conversionRateCaption",
       `Selected period · ${conversionSupportingText}`
@@ -495,6 +502,7 @@ async function loadTopProducts(request) {
       purchases: Number(product.purchases || 0),
       revenue: Number(product.revenue || 0),
       conversionRate: Number(product.conversionRate || 0),
+      conversionAvailable: product.conversionAvailable,
     }));
 
     [...new Set(rows.map((item) => item.skinType))]
@@ -553,7 +561,7 @@ async function loadTopProducts(request) {
               <div class="col addtocart">${formatCount(product.addToCart)}</div>
               <div class="col purchases">${formatCount(product.purchases)}</div>
               <div class="col revenue">${formatCurrency(product.revenue)}</div>
-              <div class="col conv">${formatPercent(product.conversionRate)}</div>
+              <div class="col conv">${formatViewerRate(product)}</div>
             </div>
           `
         )
@@ -660,7 +668,7 @@ async function loadRecommendations(request) {
               <span>Add to cart ${formatCount(item.addToCart)}</span>
               <span>Purchases ${formatCount(item.purchases)}</span>
               <span>Revenue ${formatCurrency(item.revenue)}</span>
-              <span>Viewer-to-buyer rate ${formatPercent(item.conversionRate)}</span>
+              <span>Viewer-to-buyer rate ${formatViewerRate(item)}</span>
             </div>
           </div>
           <span class="badge recommendation-badge">Selected period</span>
@@ -705,7 +713,7 @@ async function loadCustomerIntelligence(request) {
       "repeatBuyersList",
       data.repeatBuyers,
       "No repeat buyers are recorded yet.",
-      "2+ purchase events"
+      "2+ Shopify orders or separate CSV purchases"
     );
     renderCustomerList(
       "inactiveUsersList",

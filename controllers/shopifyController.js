@@ -1,268 +1,133 @@
-// controllers/shopifyController.js
-const jwt = require("jsonwebtoken");
+const crypto = require("node:crypto");
+const Merchant = require("../models/Merchant");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
-const {
-  buildAuthorizeUrl,
-  exchangeCodeForToken,
-  fetchAllPages,
-} = require("../services/shopifyService");
-const Merchant = require("../models/Merchant");
-const Customer = require("../models/Customer");
-const Product = require("../models/Product");
-const Event = require("../models/Event");
+const shopify = require("../services/shopifyService");
+const sync = require("../services/shopifySync");
+
+const COOKIE = "di_shopify_oauth";
+const hash = value => crypto.createHash("sha256").update(value).digest("hex");
+const noLease = () => ({ $or: [{ shopifyLeaseUntil: { $exists: false } }, { shopifyLeaseUntil: null }, { shopifyLeaseUntil: { $lte: new Date() } }] });
+const cookieOptions = () => ({ httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/api/shopify/callback", maxAge: 600000 });
+const signedCookie = (state, secret) => `${state}.${crypto.createHmac("sha256", secret).update(`cookie:${state}`).digest("hex")}`;
+
+function safeStatus(merchant, configured) {
+  const busy = merchant.shopifyLeaseUntil && new Date(merchant.shopifyLeaseUntil) > new Date();
+  return {
+    configured, connected: merchant.shopifyConnectionState === "connected",
+    shop: merchant.shopifyStoreDomain || null, connectedAt: merchant.shopifyConnectedAt || null,
+    lastSyncAt: merchant.shopifyLastSyncAt || null,
+    syncStatus: busy ? "running" : merchant.shopifyLastSyncStatus === "running" ? "interrupted" : merchant.shopifyLastSyncStatus || "never",
+    summary: safeSummary(merchant.shopifyLastSyncSummary),
+    reconnectRequired: merchant.shopifyConnectionState === "reconnect_required",
+    historyDays: 60,
+    includeTestOrders: shopify.getShopifyConfig().includeTestOrders,
+    dataNote: "Manual sync imports the last 60 days of orders. Sales use GBP merchandise amounts after discounts and refunded/removed units, excluding tax, shipping and general order adjustments. Browsing and cart tracking are not imported."
+  };
+}
+
+function safeSummary(summary) {
+  if (!summary || typeof summary !== "object") return null;
+  const fields = ["customersProcessed", "productsProcessed", "ordersProcessed", "purchasesImported", "purchasesUpdated", "purchasesUnchanged", "purchasesRetired", "guestPurchaseLines", "unknownProductLines", "excludedTestOrders", "excludedUnpaidOrCancelledOrders", "historyDays"];
+  return Object.fromEntries(fields.filter(key => Number.isSafeInteger(summary[key]) && summary[key] >= 0).map(key => [key, summary[key]]));
+}
+
+const getShopifyStatus = asyncHandler(async (req, res) => {
+  const merchant = await Merchant.findById(req.merchant._id).select("shopifyStoreDomain shopifyConnectionState shopifyConnectedAt shopifyLastSyncAt shopifyLastSyncStatus shopifyLastSyncSummary +shopifyLeaseUntil");
+  if (!merchant) throw new AppError("Merchant not found.", 404);
+  res.json(safeStatus(merchant, shopify.getShopifyConfig().configured));
+});
 
 const connectShopify = asyncHandler(async (req, res) => {
-  const { shop } = req.query;
-  if (!shop) {
-    throw new AppError("Missing shop parameter, e.g. ?shop=your-store", 400);
-  }
-
-  const state = jwt.sign(
-    { merchantId: req.merchant._id },
-    process.env.JWT_SECRET,
-    { expiresIn: "10m" }
-  );
-
-  res.json({ authorizeUrl: buildAuthorizeUrl(shop, state) });
+  const config = shopify.requireShopifyConfig();
+  const shop = shopify.normalizeShop(req.query.shop);
+  await sync.assertDatabaseReady();
+  const state = crypto.randomBytes(32).toString("hex");
+  const merchant = await Merchant.findOneAndUpdate({ _id: req.merchant._id,
+    $and: [noLease(), { $or: [{ shopifyStoreDomain: null }, { shopifyStoreDomain: shop }] }] },
+  { $set: { shopifyPendingStateHash: hash(state), shopifyPendingShop: shop,
+    shopifyPendingExpiresAt: new Date(Date.now() + 600000) } }, { new: true, runValidators: true, maxTimeMS: 10000 });
+  if (!merchant) throw new AppError("A sync is running, or this account belongs to another store. Use the original store or a separate account.", 409);
+  res.cookie(COOKIE, signedCookie(state, config.clientSecret), cookieOptions());
+  res.json({ authorizeUrl: shopify.buildAuthorizeUrl(shop, state, config) });
 });
 
 const shopifyCallback = asyncHandler(async (req, res) => {
-  const { shop, code, state } = req.query;
-  if (!shop || !code || !state) {
-    throw new AppError("Missing shop, code, or state from Shopify redirect", 400);
+  const config = shopify.requireShopifyConfig();
+  const { shop, code, state } = shopify.validateCallback(req.originalUrl, config.clientSecret);
+  let cookie;
+  try {
+    cookie = (req.headers.cookie || "").split(";").map(part => part.trim()).filter(part => part.startsWith(`${COOKIE}=`));
+    if (cookie.length !== 1) throw new Error();
+    cookie = decodeURIComponent(cookie[0].slice(COOKIE.length + 1));
+  } catch { throw new AppError("Shopify browser verification failed. Start the connection again.", 403); }
+  if (!shopify.equalSecret(cookie, signedCookie(state, config.clientSecret))) throw new AppError("Shopify browser verification failed. Start the connection again.", 403);
+  const leaseId = crypto.randomBytes(24).toString("hex");
+  const merchant = await Merchant.findOneAndUpdate({ shopifyPendingStateHash: hash(state), shopifyPendingShop: shop,
+    shopifyPendingExpiresAt: { $gt: new Date() }, ...noLease() },
+  { $set: { shopifyLeaseId: leaseId, shopifyLeaseUntil: new Date(Date.now() + 180000) },
+    $unset: { shopifyPendingStateHash: 1, shopifyPendingShop: 1, shopifyPendingExpiresAt: 1 } },
+  { new: true, maxTimeMS: 10000 });
+  if (!merchant) throw new AppError("This connection request expired, was already used, or is busy. Start again.", 409);
+  res.clearCookie(COOKIE, { ...cookieOptions(), maxAge: undefined });
+  try {
+    const tokens = await shopify.exchangeToken(shop, { code, expiring: "1" }, config);
+    const updated = await Merchant.updateOne({ _id: merchant._id, shopifyLeaseId: leaseId }, {
+      $set: { shopifyTokenCiphertext: shopify.sealTokens(tokens, merchant._id, shop, config.encryptionKey),
+        shopifyStoreDomain: shop, shopifyConnectionState: "connected", shopifyConnectedAt: new Date(), platformType: "shopify" },
+      $unset: { shopifyAccessToken: 1 }
+    }, { runValidators: true, maxTimeMS: 10000 });
+    if (updated.matchedCount !== 1) throw new AppError("The connection changed. Start Shopify connection again.", 409);
+    res.redirect(303, "/settings.html?shopify=connected#shopify-connection");
+  } finally {
+    await Merchant.updateOne({ _id: merchant._id, shopifyLeaseId: leaseId }, { $unset: { shopifyLeaseId: 1, shopifyLeaseUntil: 1 } }, { maxTimeMS: 10000 }).catch(() => {});
   }
-
-  const decoded = jwt.verify(state, process.env.JWT_SECRET);
-  const accessToken = await exchangeCodeForToken(shop, code);
-
-  await Merchant.findByIdAndUpdate(decoded.merchantId, {
-    shopifyStoreDomain: shop,
-    shopifyAccessToken: accessToken,
-    platformType: "shopify",
-  });
-
-  res.send("Shopify store connected. You can close this tab.");
 });
-
-const CUSTOMERS_QUERY = `
-  query GetCustomers($cursor: String) {
-    customers(first: 50, after: $cursor) {
-      pageInfo { hasNextPage endCursor }
-      edges {
-        node { id firstName lastName email updatedAt }
-      }
-    }
-  }
-`;
-
-const PRODUCTS_QUERY = `
-  query GetProducts($cursor: String) {
-    products(first: 50, after: $cursor) {
-      pageInfo { hasNextPage endCursor }
-      edges {
-        node {
-          id
-          title
-          handle
-          vendor
-          productType
-          status
-          featuredImage { url }
-          priceRangeV2 {
-            minVariantPrice { amount currencyCode }
-          }
-        }
-      }
-    }
-  }
-`;
-
-const ORDERS_QUERY = `
-  query GetOrders($cursor: String) {
-    orders(first: 50, after: $cursor, sortKey: CREATED_AT) {
-      pageInfo { hasNextPage endCursor }
-      edges {
-        node {
-          id
-          createdAt
-          customer { id }
-          lineItems(first: 50) {
-            edges {
-              node {
-                quantity
-                originalUnitPriceSet { shopMoney { amount currencyCode } }
-                product { id }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-`;
-
-const CATEGORY_ENUM = ["cleanser", "moisturizer", "serum", "sunscreen", "treatment", "toner", "mask", "other"];
-
-function mapProductType(shopifyProductType) {
-  const normalized = (shopifyProductType || "").toLowerCase().trim();
-  return CATEGORY_ENUM.includes(normalized) ? normalized : "other";
-}
 
 const syncShopifyData = asyncHandler(async (req, res) => {
-  const merchant = req.merchant;
-
-  if (!merchant.shopifyAccessToken || !merchant.shopifyStoreDomain) {
-    throw new AppError("Connect a Shopify store before syncing", 400);
-  }
-
-  const shop = merchant.shopifyStoreDomain;
-  const token = merchant.shopifyAccessToken;
-
-  // --- Customers ---
-  const shopifyCustomers = await fetchAllPages(shop, token, CUSTOMERS_QUERY, (data) => data.customers);
-
-  let customersUpserted = 0;
-  let customerErrors = 0;
-
-  for (const c of shopifyCustomers) {
-    try {
-      await Customer.findOneAndUpdate(
-        { merchantId: merchant._id, shopifyCustomerId: c.id },
-        {
-          $set: {
-            merchantId: merchant._id,
-            shopifyCustomerId: c.id,
-            firstName: c.firstName || "Unknown",
-            lastName: c.lastName || "",
-            email: c.email || null,
-            lastSeenAt: c.updatedAt ? new Date(c.updatedAt) : null,
-          },
-          // Only applied the first time this customer is created — a
-          // resync should never overwrite a skinType/concern that's
-          // since been collected some other way.
-          $setOnInsert: { skinType: "unknown", concern: "unknown" },
-        },
-        { upsert: true, new: true }
-      );
-      customersUpserted++;
-    } catch (err) {
-      console.error(`Failed to sync Shopify customer ${c.id}:`, err.message);
-      customerErrors++;
+  const config = shopify.requireShopifyConfig();
+  await sync.assertDatabaseReady();
+  const leaseId = crypto.randomBytes(24).toString("hex");
+  const merchant = await Merchant.findOneAndUpdate({ _id: req.merchant._id, shopifyConnectionState: "connected", ...noLease() },
+  { $set: { shopifyLeaseId: leaseId, shopifyLeaseUntil: new Date(Date.now() + 180000), shopifyLastSyncStatus: "running" } },
+  { new: true, maxTimeMS: 10000 }).select("+shopifyTokenCiphertext");
+  if (!merchant) throw new AppError("Connect Shopify first, or wait for the current sync to finish.", 409);
+  const deadline = Date.now() + 80000;
+  try {
+    const shop = shopify.normalizeShop(merchant.shopifyStoreDomain);
+    let tokens = shopify.openTokens(merchant.shopifyTokenCiphertext, merchant._id, shop, config.encryptionKey);
+    if (tokens.expiresAt <= Date.now() + 120000) {
+      if (!tokens.refreshToken || tokens.refreshExpiresAt && tokens.refreshExpiresAt <= Date.now()) throw new AppError("Shopify access expired. Reconnect the store.", 409);
+      tokens = await shopify.exchangeToken(shop, { grant_type: "refresh_token", refresh_token: tokens.refreshToken }, config, deadline);
+      const saved = await Merchant.updateOne({ _id: merchant._id, shopifyLeaseId: leaseId, shopifyConnectionState: "connected" },
+        { $set: { shopifyTokenCiphertext: shopify.sealTokens(tokens, merchant._id, shop, config.encryptionKey) } }, { maxTimeMS: 10000 });
+      if (saved.matchedCount !== 1) throw new AppError("The store connection changed. Reconnect Shopify.", 409);
     }
+    const snapshot = await sync.fetchSnapshot(shop, tokens.accessToken, config, deadline);
+    snapshot.includeTestOrders = config.includeTestOrders;
+    const summary = await sync.persistSnapshot(snapshot, merchant._id, shop, leaseId, deadline);
+    const saved = await Merchant.updateOne({ _id: merchant._id, shopifyLeaseId: leaseId, shopifyConnectionState: "connected" },
+      { $set: { shopifyLastSyncAt: new Date(), shopifyLastSyncStatus: "complete", shopifyLastSyncSummary: summary } }, { maxTimeMS: 10000 });
+    if (saved.matchedCount !== 1) throw new AppError("The store connection changed before the sync could be confirmed.", 409);
+    res.json({ message: "Shopify sync complete.", summary });
+  } catch (error) {
+    await Merchant.updateOne({ _id: merchant._id, shopifyLeaseId: leaseId }, { $set: {
+      shopifyLastSyncStatus: "failed", shopifyLastSyncSummary: error.syncSummary || null
+    } }, { maxTimeMS: 10000 }).catch(() => {});
+    throw error;
+  } finally {
+    await Merchant.updateOne({ _id: merchant._id, shopifyLeaseId: leaseId }, { $unset: { shopifyLeaseId: 1, shopifyLeaseUntil: 1 } }, { maxTimeMS: 10000 }).catch(() => {});
   }
-
-  // --- Products ---
-  const shopifyProducts = await fetchAllPages(shop, token, PRODUCTS_QUERY, (data) => data.products);
-
-  let productsUpserted = 0;
-  let productErrors = 0;
-
-  for (const p of shopifyProducts) {
-    try {
-      await Product.findOneAndUpdate(
-        { merchantId: merchant._id, shopifyProductId: p.id },
-        {
-          $set: {
-            merchantId: merchant._id,
-            shopifyProductId: p.id,
-            title: p.title,
-            handle: p.handle,
-            brand: p.vendor || null,
-            category: mapProductType(p.productType),
-            price: Number(p.priceRangeV2?.minVariantPrice?.amount || 0),
-            currency: p.priceRangeV2?.minVariantPrice?.currencyCode || "GBP",
-            imageUrl: p.featuredImage?.url || null,
-            isActive: p.status === "ACTIVE",
-          },
-          $setOnInsert: { skinType: "all", concern: "none" },
-        },
-        { upsert: true, new: true }
-      );
-      productsUpserted++;
-    } catch (err) {
-      console.error(`Failed to sync Shopify product ${p.id}:`, err.message);
-      productErrors++;
-    }
-  }
-
-  // Build Shopify-ID → Mongo-_id lookup maps now that both collections
-  // are current — orders reference Shopify's IDs, and events need ours.
-  const customerLookup = new Map(
-    (await Customer.find({ merchantId: merchant._id, shopifyCustomerId: { $ne: null } })
-      .select("_id shopifyCustomerId")
-      .lean()
-    ).map((c) => [c.shopifyCustomerId, c._id])
-  );
-
-  const productLookup = new Map(
-    (await Product.find({ merchantId: merchant._id, shopifyProductId: { $ne: null } })
-      .select("_id shopifyProductId")
-      .lean()
-    ).map((p) => [p.shopifyProductId, p._id])
-  );
-
-  // --- Orders → purchase events ---
-  const shopifyOrders = await fetchAllPages(shop, token, ORDERS_QUERY, (data) => data.orders);
-
-  let eventsWritten = 0;
-  let skippedLineItems = 0;
-  let orderErrors = 0;
-
-  for (const order of shopifyOrders) {
-    try {
-      const customerId = order.customer ? customerLookup.get(order.customer.id) : null;
-
-      // Delete-then-reinsert per order keeps resyncing idempotent without
-      // a second unique key per line item, and stays scoped to this one
-      // order so it can never touch view/add_to_cart events later on.
-      await Event.deleteMany({ merchantId: merchant._id, shopifyOrderId: order.id });
-
-      const lineItemDocs = [];
-
-      for (const edge of order.lineItems.edges) {
-        const lineItem = edge.node;
-        const productId = lineItem.product ? productLookup.get(lineItem.product.id) : null;
-
-        if (!customerId || !productId) {
-          skippedLineItems++;
-          continue;
-        }
-
-        lineItemDocs.push({
-          merchantId: merchant._id,
-          customerId,
-          productId,
-          type: "purchase",
-          quantity: lineItem.quantity || 1,
-          price: Number(lineItem.originalUnitPriceSet?.shopMoney?.amount || 0),
-          currency: lineItem.originalUnitPriceSet?.shopMoney?.currencyCode || "GBP",
-          occurredAt: new Date(order.createdAt),
-          shopifyOrderId: order.id,
-        });
-      }
-
-      if (lineItemDocs.length > 0) {
-        await Event.insertMany(lineItemDocs);
-        eventsWritten += lineItemDocs.length;
-      }
-    } catch (err) {
-      console.error(`Failed to sync Shopify order ${order.id}:`, err.message);
-      orderErrors++;
-    }
-  }
-
-  res.json({
-    message: "Shopify sync complete",
-    customersUpserted,
-    customerErrors,
-    productsUpserted,
-    productErrors,
-    ordersProcessed: shopifyOrders.length,
-    eventsWritten,
-    skippedLineItems,
-    orderErrors,
-  });
 });
 
-module.exports = { connectShopify, shopifyCallback, syncShopifyData };
+const disconnectShopify = asyncHandler(async (req, res) => {
+  // Disconnect remains available when the integration flag/credentials change.
+  const merchant = await Merchant.findOneAndUpdate({ _id: req.merchant._id, ...noLease() }, {
+    $set: { shopifyConnectionState: "disconnected" },
+    $unset: { shopifyTokenCiphertext: 1, shopifyAccessToken: 1, shopifyPendingStateHash: 1, shopifyPendingShop: 1, shopifyPendingExpiresAt: 1 }
+  }, { new: true, maxTimeMS: 10000 });
+  if (!merchant) throw new AppError("Wait for the current sync to finish before disconnecting.", 409);
+  res.json({ message: "Disconnected. Imported records remain available. Uninstall the app in Shopify to remove its permissions there." });
+});
+
+module.exports = { getShopifyStatus, connectShopify, shopifyCallback, syncShopifyData, disconnectShopify, safeStatus, signedCookie, safeSummary };

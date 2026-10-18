@@ -80,13 +80,17 @@ const getRepeatBuyers = async (req, res) => {
         $match: {
           merchantId,
           type: "purchase",
+          customerId: { $ne: null },
         },
       },
       {
         $group: {
           _id: "$customerId",
-          purchaseCount: { $sum: 1 },
+          purchaseIdentities: { $addToSet: { $ifNull: ["$shopifyOrderId", { $toString: "$_id" }] } },
         },
+      },
+      {
+        $addFields: { purchaseCount: { $size: "$purchaseIdentities" } },
       },
       {
         $match: {
@@ -98,6 +102,7 @@ const getRepeatBuyers = async (req, res) => {
     const customerIds = repeatBuyers.map((r) => r._id);
 
     const customers = await Customer.find({
+      merchantId,
       _id: { $in: customerIds },
     }).select("-__v");
 

@@ -103,6 +103,11 @@ const getOverviewAnalytics = async (req, res) => {
           totalPurchases: {
             $sum: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] },
           },
+          purchaseIdentities: {
+            $addToSet: { $cond: [{ $eq: ["$type", "purchase"] }, { $ifNull: ["$shopifyOrderId", { $toString: "$_id" }] }, null] }
+          },
+          guestPurchaseLines: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "purchase"] }, { $eq: ["$customerId", null] }] }, 1, 0] } },
+          unknownProductPurchaseLines: { $sum: { $cond: [{ $and: [{ $eq: ["$type", "purchase"] }, { $eq: ["$productId", null] }] }, 1, 0] } },
           totalRevenue: {
             $sum: {
               $cond: [
@@ -127,6 +132,9 @@ const getOverviewAnalytics = async (req, res) => {
           totalViews: { $sum: "$totalViews" },
           totalAddToCart: { $sum: "$totalAddToCart" },
           totalPurchases: { $sum: "$totalPurchases" },
+          totalPurchaseOrders: { $sum: { $size: { $setDifference: ["$purchaseIdentities", [null]] } } },
+          guestPurchaseLines: { $sum: "$guestPurchaseLines" },
+          unknownProductPurchaseLines: { $sum: "$unknownProductPurchaseLines" },
           totalRevenue: { $sum: "$totalRevenue" },
           uniqueViewers: { $sum: "$viewed" },
           uniquePurchasingViewers: {
@@ -162,11 +170,11 @@ const getOverviewAnalytics = async (req, res) => {
     ] = await Promise.all([
       Customer.countDocuments({ merchantId }),
       Product.countDocuments({ merchantId }),
-      Event.distinct("customerId", { merchantId }),
-      Event.distinct("productId", { merchantId }),
+      Event.distinct("customerId", { merchantId, customerId: { $ne: null } }),
+      Event.distinct("productId", { merchantId, productId: { $ne: null } }),
       Event.aggregate([
         {
-          $match: matchStage,
+          $match: { ...matchStage, customerId: { $ne: null } },
         },
         {
           $group: {
@@ -268,9 +276,10 @@ const getOverviewAnalytics = async (req, res) => {
       },
     ]);
 
+    const purchaseOrders = result.totalPurchaseOrders ?? result.totalPurchases ?? 0;
     const averagePurchaseValue =
-      (result.totalPurchases || 0) > 0
-        ? Number((result.totalRevenue / result.totalPurchases).toFixed(2))
+      purchaseOrders > 0
+        ? Number((result.totalRevenue / purchaseOrders).toFixed(2))
         : 0;
     const topSkinTypeCount = skinTypeCounts[0]?.count || 0;
     const topSkinTypes = skinTypeCounts
@@ -295,11 +304,17 @@ const getOverviewAnalytics = async (req, res) => {
         totalViews: result.totalViews,
         totalAddToCart: result.totalAddToCart,
         totalPurchases: result.totalPurchases,
+        totalPurchaseOrders: purchaseOrders,
+        guestPurchaseLines: result.guestPurchaseLines || 0,
+        unknownProductPurchaseLines: result.unknownProductPurchaseLines || 0,
         totalRevenue: Number(result.totalRevenue.toFixed(2)),
         averagePurchaseValue,
         conversionRate,
         conversionRateRaw: conversionRate,
         conversionRateAnomaly,
+        conversionAvailable: (result.uniqueViewers || 0) > 0,
+        sourceNote: req.merchant.shopifyStoreDomain ?
+          "Shopify order sync does not include browsing or cart tracking. Shopify sales use discounted merchandise amounts after refunded/removed units, excluding tax, shipping and general order adjustments; they are not profit. Imported sales are refreshed when you sync." : null,
         uniqueViewers: result.uniqueViewers || 0,
         uniquePurchasingViewers: result.uniquePurchasingViewers || 0,
         customersWithActivityInPeriod: selectedPeriodActiveCustomers[0]?.count || 0,
@@ -548,6 +563,7 @@ const getTopProducts = async (req, res) => {
 
     const topProducts = aggregatedTopProducts.map((product) => ({
       ...product,
+      conversionAvailable: (product.uniqueViewers || 0) > 0,
       conversionRate: toRoundedRate(
         product.uniquePurchasingViewers || 0,
         product.uniqueViewers || 0

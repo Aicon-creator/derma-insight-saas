@@ -155,7 +155,8 @@ test("10000 repeated Event references use one bounded scan per collection and no
   assert.deepEqual(db.scans.map((scan) => scan.options.projection), [
     { _id: 1 }, { _id: 1, merchantId: 1, email: 1 },
     { _id: 1, merchantId: 1, handle: 1 },
-    { _id: 0, merchantId: 1, dedupeKey: 1, customerId: 1, productId: 1 }
+    { _id: 0, merchantId: 1, dedupeKey: 1, customerId: 1, productId: 1,
+      source: 1, type: 1, shopifyStoreDomain: 1, shopifyOrderId: 1, shopifyLineItemId: 1 }
   ]);
 });
 

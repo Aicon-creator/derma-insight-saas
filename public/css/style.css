@@ -2438,3 +2438,10 @@ body[data-di-active-nav] .chart-container canvas {
     padding: 0.95rem 0.9rem;
   }
 }
+/* Store connection controls share the existing card and button styling. */
+.shopify-card { max-width: 960px; margin-bottom: 24px; }
+.shopify-connect-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 16px 0; }
+.shopify-connect-form .form-field { flex: 1 1 260px; min-width: 0; }
+.shopify-connect-form input { width: 100%; min-width: 0; box-sizing: border-box; }
+.shopify-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+.shopify-card p { overflow-wrap: anywhere; }

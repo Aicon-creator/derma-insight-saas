@@ -33,6 +33,7 @@ before(async () => {
 
 beforeEach(() => {
   process.env.NODE_ENV = "production";
+  delete process.env.SHOPIFY_ENABLED;
   databaseOperations = 0;
   externalRequests = 0;
   const rejectDatabaseAccess = () => {
@@ -95,7 +96,7 @@ for (const [method, path] of [
       const response = await request(path, { method, authenticated });
       assert.equal(response.status, 503);
       assert.deepEqual(response.body, {
-        message: "Shopify connections and sync are temporarily unavailable while we complete the secure integration."
+        message: "Shopify is unavailable until the store connection is configured."
       });
       assert.equal(response.headers.get("cache-control"), "no-store");
       assert.doesNotMatch(JSON.stringify(response.body), /callback-secret|callback-state|test-shop/);
@@ -149,13 +150,14 @@ test("existing CSV endpoints remain protected and available behind merchant auth
   }
 });
 
-test("development demo and Shopify routes still reach their existing authentication middleware", async () => {
+test("development demo routes require authentication and Shopify still needs explicit configuration", async () => {
   process.env.NODE_ENV = "development";
-  for (const path of ["/api/sim/customers", "/api/sim/products", "/api/sim/events", "/api/shopify/sync"]) {
+  for (const path of ["/api/sim/customers", "/api/sim/products", "/api/sim/events"]) {
     const response = await request(path, { method: "POST" });
     assert.equal(response.status, 401);
   }
-  assert.equal((await request("/api/shopify/connect?shop=test-shop")).status, 401);
+  assert.equal((await request("/api/shopify/connect?shop=test-shop")).status, 503);
+  assert.equal((await request("/api/shopify/sync", { method: "POST" })).status, 503);
 });
 
 test("production health endpoint remains available without authentication or a database connection", async () => {

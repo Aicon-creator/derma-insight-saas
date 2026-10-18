@@ -34,6 +34,10 @@ app.use(
   })
 );
 
+app.post("/api/shopify/webhooks/app-uninstalled",
+  express.raw({ type: "application/json", limit: "256kb" }),
+  require("./controllers/shopifyWebhookController").appUninstalled);
+
 app.use(
   express.json({
     limit: "1mb"
