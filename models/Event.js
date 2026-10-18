@@ -11,13 +11,13 @@ const eventSchema = new mongoose.Schema(
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Customer",
-      required: true,
+      required: function () { return (this.source || this.getUpdate?.().$set?.source) !== "shopify"; },
       index: true,
     },
     productId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
-      required: true,
+      required: function () { return (this.source || this.getUpdate?.().$set?.source) !== "shopify"; },
       index: true,
     },
 
@@ -35,6 +35,10 @@ const eventSchema = new mongoose.Schema(
     sessionId: { type: String, default: null },
     sourceEventId: { type: String, trim: true, default: null },
     dedupeKey: { type: String, trim: true, default: null },
+    source: { type: String, enum: ["csv", "shopify"], default: null },
+    shopifyStoreDomain: { type: String, default: null },
+    shopifyOrderId: { type: String, default: null },
+    shopifyLineItemId: { type: String, default: null },
     occurredAt: { type: Date, default: Date.now, index: true },
   },
   { timestamps: true }

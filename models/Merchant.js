@@ -16,7 +16,19 @@ const merchantSchema = new mongoose.Schema(
 
     platformType: { type: String, enum: ["custom", "shopify"], default: "custom" },
     shopifyStoreDomain: { type: String, default: null },
-    shopifyAccessToken: { type: String, default: null },
+    // Legacy plaintext values are never read by the connection workflow.
+    shopifyAccessToken: { type: String, default: null, select: false },
+    shopifyTokenCiphertext: { type: String, default: null, select: false },
+    shopifyConnectionState: { type: String, enum: ["disconnected", "connected", "reconnect_required"], default: "disconnected" },
+    shopifyConnectedAt: { type: Date, default: null },
+    shopifyLastSyncAt: { type: Date, default: null },
+    shopifyLastSyncStatus: { type: String, enum: ["never", "running", "complete", "failed"], default: "never" },
+    shopifyLastSyncSummary: { type: mongoose.Schema.Types.Mixed, default: null },
+    shopifyPendingStateHash: { type: String, select: false },
+    shopifyPendingShop: { type: String, select: false },
+    shopifyPendingExpiresAt: { type: Date, select: false },
+    shopifyLeaseId: { type: String, select: false },
+    shopifyLeaseUntil: { type: Date, select: false },
 
     subscriptionTier: { type: String, default: "free" },
   },

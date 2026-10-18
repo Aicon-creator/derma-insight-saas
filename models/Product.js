@@ -11,6 +11,8 @@ const productSchema = new mongoose.Schema(
 
     title: { type: String, required: true, trim: true },
     handle: { type: String, required: true, trim: true }, // url-friendly slug
+    shopifyProductId: { type: String, default: null },
+    shopifyStoreDomain: { type: String, default: null },
     brand: { type: String, default: null },
 
     category: {
@@ -40,7 +42,12 @@ const productSchema = new mongoose.Schema(
     imageUrl: { type: String, default: null },
     isActive: { type: Boolean, default: true },
   },
-  { timestamps: true }
+  { timestamps: true, autoIndex: false }
 );
+
+productSchema.index({ merchantId: 1, handle: 1 }, { unique: true, partialFilterExpression: { handle: { $type: "string" } } });
+productSchema.index({ merchantId: 1, shopifyStoreDomain: 1, shopifyProductId: 1 }, {
+  unique: true, partialFilterExpression: { shopifyProductId: { $type: "string" } }
+});
 
 module.exports = mongoose.models.Product || mongoose.model("Product", productSchema);

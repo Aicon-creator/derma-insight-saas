@@ -67,6 +67,11 @@ function countInvalidReferences(rows, checks, referenceIndexes) {
     const targets = referenceIndexes[check.from];
     let invalid = 0;
     for (const row of rows) {
+      const knownShopifyPurchase = row.source === "shopify" && row.type === "purchase" &&
+        /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.myshopify\.com$/.test(row.shopifyStoreDomain || "") &&
+        /^gid:\/\/shopify\/Order\/\d+$/.test(row.shopifyOrderId || "") &&
+        /^gid:\/\/shopify\/LineItem\/\d+$/.test(row.shopifyLineItemId || "") && /^[a-f0-9]{64}$/.test(row.dedupeKey || "");
+      if (check.tenantScoped && row[check.field] === null && knownShopifyPurchase) continue;
       const id = objectIdKey(row[check.field]);
       const merchant = objectIdKey(row.merchantId);
       if (id === null || !targets.has(id) ||
@@ -103,7 +108,7 @@ async function auditDatabase(db, { onStage = () => {} } = {}) {
     // IDs and ownership only; no customer names or merchant credentials are read.
     const projection = name === "merchants" ? { _id: 1 } : {
       _id: name === "events" ? 0 : 1, merchantId: 1, [field]: 1,
-      ...(name === "events" ? { customerId: 1, productId: 1 } : {})
+      ...(name === "events" ? { customerId: 1, productId: 1, source: 1, type: 1, shopifyStoreDomain: 1, shopifyOrderId: 1, shopifyLineItemId: 1 } : {})
     };
     onStage(name === "merchants" ? "scan_references" : "scan_identities", name);
     const rows = await collection.find({}, { ...READ_OPTIONS, projection })

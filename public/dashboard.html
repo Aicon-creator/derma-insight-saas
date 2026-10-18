@@ -57,6 +57,7 @@
           <p class="section-helper" id="dashboardStatus" role="status" aria-live="polite">Loading dashboard…</p>
           <button class="btn btn-secondary hidden" id="retryDashboardBtn" type="button">Retry dashboard</button>
         </div>
+        <p class="section-helper" id="dashboardSourceNote" aria-live="polite"></p>
 
         <section id="newMerchantState" class="new-merchant-state hidden" aria-live="polite">
           <div>
@@ -67,7 +68,7 @@
 
           <div class="onboarding-actions">
             <button class="btn btn-primary" id="generateDemoDataBtn" type="button">Explore Demo Data</button>
-            <button class="btn btn-secondary" type="button" disabled>Connect Shopify</button>
+            <a class="btn btn-secondary" href="./settings.html#shopify-connection">Connect Shopify</a>
             <a class="btn btn-secondary" href="./imports.html">Upload CSV</a>
           </div>
 
@@ -148,15 +149,15 @@
           </div>
 
           <div class="card insight-card">
-            <span class="insight-label">Average Purchase Value</span>
+            <span class="insight-label">Average Order / Purchase Value</span>
             <span class="insight-value" id="averagePurchaseValueInsight">Loading...</span>
-            <span class="insight-caption">Selected period · revenue ÷ purchase events</span>
+            <span class="insight-caption">Revenue ÷ distinct Shopify orders or separate CSV purchases</span>
           </div>
 
           <div class="card insight-card">
             <span class="insight-label">Repeat Buyers</span>
             <span class="insight-value" id="repeatBuyerInsight">Loading...</span>
-            <span class="insight-caption">All recorded history · 2+ purchase events</span>
+            <span class="insight-caption">All history · 2+ Shopify orders or separate CSV purchases</span>
           </div>
         </section>
 

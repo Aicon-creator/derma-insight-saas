@@ -22,4 +22,19 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Start isolated MongoDB replica set
+        run: |
+          docker run -d --name derma-test-mongo -p 127.0.0.1:27018:27017 mongo:8.0 --replSet rs0 --bind_ip_all
+          for attempt in {1..20}; do
+            if docker exec derma-test-mongo mongosh --quiet --eval 'db.adminCommand({ping:1})' >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          docker exec derma-test-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"localhost:27017"}]})'
+          for attempt in {1..20}; do
+            if docker exec derma-test-mongo mongosh --quiet --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)' >/dev/null 2>&1; then exit 0; fi
+            sleep 1
+          done
+          exit 1
       - run: npm test
+        env:
+          DI_TEST_MONGO_URI: mongodb://127.0.0.1:27018/derma_insight_shopify_test_ci?directConnection=true&replicaSet=rs0

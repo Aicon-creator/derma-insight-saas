@@ -39,6 +39,7 @@ exports.getCustomerSegments = async (req, res) => {
       {
         $match: {
           merchantId: merchantObjectId,
+          customerId: { $ne: null },
           occurredAt: { $lte: period.endAt }
         }
       },
@@ -62,6 +63,9 @@ exports.getCustomerSegments = async (req, res) => {
           },
           purchaseCount: {
             $sum: { $cond: [{ $eq: ["$type", "purchase"] }, 1, 0] }
+          },
+          purchaseIdentities: {
+            $addToSet: { $cond: [{ $eq: ["$type", "purchase"] }, { $ifNull: ["$shopifyOrderId", { $toString: "$_id" }] }, null] }
           },
           viewCount: {
             $sum: { $cond: [{ $eq: ["$type", "view"] }, 1, 0] }
@@ -104,7 +108,8 @@ exports.getCustomerSegments = async (req, res) => {
       concernSegments[concern] = (concernSegments[concern] || 0) + 1;
 
       const lastActivityAt = stats?.lastActivityAt || null;
-      const purchaseCount = Number(stats?.purchaseCount || 0);
+      const purchaseCount = Array.isArray(stats?.purchaseIdentities)
+        ? stats.purchaseIdentities.filter(value => value !== null).length : Number(stats?.purchaseCount || 0);
       const viewCount = Number(stats?.viewCount || 0);
       const addToCartCount = Number(stats?.addToCartCount || 0);
       const hasActivity = Boolean(lastActivityAt);
@@ -193,7 +198,7 @@ exports.getCustomerSegments = async (req, res) => {
           "Customers with no recorded event history yet.",
         viewedNoPurchaseCustomers:
           "Customers with at least one recorded view event and no recorded purchase events.",
-        repeatBuyers: "Customers with two or more purchase events.",
+        repeatBuyers: "Customers with two or more distinct Shopify orders or separately recorded CSV purchase events. Multiple lines in one Shopify order count once.",
         highValueCustomers:
           "Customers whose total recorded purchase revenue meets or exceeds the selected high-value threshold.",
         overlapNotes:

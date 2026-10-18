@@ -22,7 +22,7 @@
             <div class="breadcrumbs">
               <h1>Settings</h1>
             </div>
-            <p class="topbar-sub">Business profile and branding</p>
+            <p class="topbar-sub">Store connection, business profile and branding</p>
           </div>
 
           <div class="topbar-actions">
@@ -40,6 +40,29 @@
             </div>
           </div>
         </header>
+
+        <section class="card shopify-card" id="shopify-connection" aria-labelledby="shopifyHeading">
+          <h2 id="shopifyHeading">Shopify connection</h2>
+          <p id="shopifyStatus" role="status" aria-live="polite">Checking your store connection…</p>
+          <form id="shopifyConnectForm" class="shopify-connect-form">
+            <div class="form-field">
+              <label for="shopifyShop">Store address</label>
+              <input id="shopifyShop" name="shop" type="text" placeholder="your-store.myshopify.com"
+                maxlength="120" autocomplete="off" spellcheck="false" required aria-describedby="shopifyHelp" />
+            </div>
+            <button class="btn btn-primary" id="shopifyConnectBtn" type="submit" disabled>Connect Shopify</button>
+          </form>
+          <p class="muted" id="shopifyHelp">Use one Derma Insight account per store. You approve access on Shopify; no store password is entered here.</p>
+          <div class="shopify-actions">
+            <button class="btn btn-primary" id="shopifySyncBtn" type="button" disabled>Sync store data</button>
+            <button class="btn btn-secondary" id="shopifyRefreshBtn" type="button">Refresh status</button>
+            <button class="btn btn-secondary" id="shopifyDisconnectBtn" type="button" disabled>Disconnect</button>
+            <a class="btn btn-secondary" href="./dashboard.html">View dashboard</a>
+          </div>
+          <p id="shopifyResult" role="status" aria-live="polite"></p>
+          <p class="muted" id="shopifyDataNote">Sync is manual and covers the last 60 days of orders. GBP merchandise sales exclude taxes, shipping and general order adjustments. Browsing and cart events are not imported.</p>
+          <p class="muted">Disconnecting removes the saved connection and keeps imported records. Uninstall the app in Shopify to revoke its permissions there.</p>
+        </section>
 
         <section class="card" style="max-width:640px">
           <h3>Business profile</h3>
@@ -66,5 +89,6 @@
     <script src="./js/api.js"></script>
     <script src="./js/layout.js"></script>
     <script src="./js/settings.js"></script>
+    <script src="./js/shopify.js"></script>
   </body>
 </html>

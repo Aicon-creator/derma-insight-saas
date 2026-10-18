@@ -164,6 +164,7 @@ const getPopularRecommendations = async (req, res) => {
       return {
         ...product,
         conversionRate,
+        conversionAvailable: (product.uniqueViewers || 0) > 0,
         recommendationReason: describePopularRecommendation({
           ...product,
           conversionRate,
@@ -292,6 +293,7 @@ const getAlsoBoughtRecommendations = async (req, res) => {
 
     const targetPurchaseEvents = await Event.find({
       merchantId,
+      customerId: { $ne: null },
       productId,
       type: "purchase",
       ...dateFilter,
@@ -388,6 +390,7 @@ const getRecommendationsForCustomer = async (req, res) => {
     const purchasedEvents = await Event.find({
       merchantId,
       customerId,
+      productId: { $ne: null },
       type: "purchase",
     }).select("productId");
 
