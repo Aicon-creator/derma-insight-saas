@@ -30,7 +30,6 @@ function recordPanelFailure(request, section) {
 }
 
 const newMerchantState = document.getElementById("newMerchantState");
-const generateDemoDataBtn = document.getElementById("generateDemoDataBtn");
 
 function formatCurrency(value) {
   return `£${Number(value || 0).toFixed(2)}`;
@@ -933,27 +932,6 @@ async function loadDashboardData() {
   }
 }
 
-async function postSimulatorData(endpoint, body) {
-  const token = localStorage.getItem("merchantToken");
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || data.error || "Failed to generate demo data.");
-  }
-
-  return data;
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("retryDashboardBtn")?.addEventListener("click", loadDashboardData);
   const dateRangeSelect = document.getElementById("dateRange");
@@ -968,26 +946,3 @@ document.addEventListener("DOMContentLoaded", () => {
 
   loadDashboardData();
 });
-
-if (generateDemoDataBtn) {
-  generateDemoDataBtn.addEventListener("click", async () => {
-    try {
-      generateDemoDataBtn.disabled = true;
-      generateDemoDataBtn.textContent = "Generating demo data...";
-
-      await postSimulatorData("/api/sim/customers", { count: 200 });
-      await postSimulatorData("/api/sim/products", { count: 30 });
-      await postSimulatorData("/api/sim/events", {
-        count: 1500,
-        daysBack: 30,
-      });
-
-      window.location.reload();
-    } catch (error) {
-      console.error(error);
-      alert(error.message || "Could not generate demo data.");
-      generateDemoDataBtn.disabled = false;
-      generateDemoDataBtn.textContent = "Explore Demo Data";
-    }
-  });
-}

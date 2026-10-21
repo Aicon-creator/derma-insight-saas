@@ -13,6 +13,8 @@ const previewErrors = document.getElementById("previewErrors");
 const IMPORTABLE_DATA_TYPES = new Set(["customers", "products", "events"]);
 let previewState = null;
 let importInFlight = false;
+let previewInFlight = false;
+let selectionVersion = 0;
 let importRequiresFreshPreview = false;
 
 function getDataTypeLabels(dataType) {
@@ -175,9 +177,18 @@ function updateConfirmImportState() {
   const labels = getDataTypeLabels(selectedDataType);
 
   confirmImportBtn.disabled = true;
+  previewBtn.disabled = previewInFlight || importInFlight;
+  fileInput.disabled = importInFlight;
+  dataTypeInput.disabled = importInFlight;
+  csvPreviewForm.setAttribute("aria-busy", String(previewInFlight || importInFlight));
 
   if (importInFlight) {
     confirmImportHint.textContent = `Importing ${labels.plural}...`;
+    return;
+  }
+
+  if (previewInFlight) {
+    confirmImportHint.textContent = "Validating your file. Wait for the preview to finish.";
     return;
   }
 
@@ -221,8 +232,11 @@ function updateConfirmImportState() {
 csvPreviewForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
+  if (importInFlight || previewInFlight) return;
+
   const dataType = dataTypeInput.value;
   const file = getSelectedFile();
+  const requestedVersion = selectionVersion;
 
   if (!file) {
     resetPreviewEligibility();
@@ -230,6 +244,7 @@ csvPreviewForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  previewInFlight = true;
   resetPreviewEligibility();
 
   const formData = new FormData();
@@ -247,6 +262,8 @@ csvPreviewForm.addEventListener("submit", async (event) => {
       method: "POST",
       body: formData
     });
+
+    if (requestedVersion !== selectionVersion || file !== getSelectedFile() || dataType !== dataTypeInput.value) return;
 
     const previewErrorsList = Array.isArray(response.errors) ? response.errors : [];
     const totalRows = Number(response.totalRows || 0);
@@ -267,23 +284,29 @@ csvPreviewForm.addEventListener("submit", async (event) => {
     importRequiresFreshPreview = false;
     updateConfirmImportState();
   } catch (error) {
+    if (requestedVersion !== selectionVersion) return;
     resetPreviewEligibility();
     setMeta(error.message || "CSV preview failed.", "error");
     previewRows.innerHTML = "";
     previewErrors.innerHTML = "";
   } finally {
-    previewBtn.disabled = false;
+    previewInFlight = false;
     previewBtn.textContent = "Preview CSV";
+    updateConfirmImportState();
   }
 });
 
-fileInput.addEventListener("change", () => {
+function selectionChanged() {
+  selectionVersion += 1;
+  if (importInFlight) return;
   resetPreviewEligibility();
-});
+  setMeta("");
+  previewRows.innerHTML = "";
+  previewErrors.innerHTML = "";
+}
 
-dataTypeInput.addEventListener("change", () => {
-  resetPreviewEligibility();
-});
+fileInput.addEventListener("change", selectionChanged);
+dataTypeInput.addEventListener("change", selectionChanged);
 
 confirmImportBtn.addEventListener("click", async () => {
   if (confirmImportBtn.disabled || importInFlight || !previewState || !selectionMatchesPreview()) {
@@ -291,15 +314,16 @@ confirmImportBtn.addEventListener("click", async () => {
   }
 
   importInFlight = true;
+  const importing = previewState;
   confirmImportBtn.disabled = true;
   confirmImportBtn.textContent = "Importing...";
-  const labels = getDataTypeLabels(previewState.dataType);
+  const labels = getDataTypeLabels(importing.dataType);
   setImportMeta(`Importing ${labels.plural}...`, "neutral");
   updateConfirmImportState();
 
   const formData = new FormData();
-  formData.append("dataType", previewState.dataType);
-  formData.append("file", previewState.file);
+  formData.append("dataType", importing.dataType);
+  formData.append("file", importing.file);
 
   try {
     const response = await apiRequest("/api/imports/csv/import", {
@@ -307,7 +331,7 @@ confirmImportBtn.addEventListener("click", async () => {
       body: formData
     });
 
-    setImportMeta(formatImportSummary(response, previewState.dataType), "success");
+    setImportMeta(formatImportSummary(response, importing.dataType), "success");
     resetPreviewEligibility({
       preserveImportMessage: true,
       requireFreshPreview: true

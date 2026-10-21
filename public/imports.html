@@ -20,8 +20,8 @@
             </button>
 
             <div class="breadcrumbs">
-              <span class="eyebrow">Data pipeline v1.1</span>
-              <h1>CSV Preview</h1>
+              <span class="eyebrow">Business data</span>
+              <h1>CSV Imports</h1>
             </div>
             <p class="topbar-sub">Upload a CSV, validate required columns, and preview parsed rows before import.</p>
           </div>
@@ -43,7 +43,22 @@
         </header>
 
         <section class="card imports-upload-card">
-          <h2>Upload CSV for preview</h2>
+          <h2>Prepare your files</h2>
+          <ol class="imports-hint">
+            <li>Import <strong>Customers</strong> first. <a href="./templates/customers.csv" download>Download customer template</a>.</li>
+            <li>Import <strong>Products</strong> next. <a href="./templates/products.csv" download>Download product template</a>.</li>
+            <li>Import <strong>Events</strong> last, using customer emails and product names already imported into this account. <a href="./templates/events.csv" download>Download event template</a>.</li>
+          </ol>
+          <p class="imports-hint">Templates contain column headings only. Add your own records, keep the headings, and save as UTF-8 CSV. Upload up to 1,000 data rows and 5 MB per file.</p>
+          <details class="imports-hint">
+            <summary>Required columns and accepted values</summary>
+            <p><strong>Customers:</strong> <code>email, first name, last name, skin type, concern</code>. Every value is required. Skin types: oily, dry, combination, normal, sensitive. Concerns: acne, hyperpigmentation, aging, dullness, texture, hydration. Duplicate emails in one file block the import.</p>
+            <p><strong>Products:</strong> <code>name, category, price</code>. Categories: cleanser, moisturizer, serum, sunscreen, treatment, toner, mask, other. Price must be a number of 0 or more, without a currency symbol.</p>
+            <p><strong>Events:</strong> <code>event type, customer email, product name, occurred at, amount</code>. Event types: view, add_to_cart, purchase. Use the actual event date/time in <code>YYYY-MM-DDTHH:mm:ssZ</code> format, or with an explicit timezone offset. For purchases, amount is the price paid per unit, including any discount; quantity defaults to 1. For views and add-to-cart events, leave amount blank or use 0.</p>
+            <p>Optional event columns: <code>event id, quantity, currency, session id</code>. Use a stable, unique event ID from your source when available. Quantity must be a positive whole number. Currency defaults to GBP; only GBP is supported.</p>
+          </details>
+
+          <h2>Preview and import</h2>
           <p class="imports-hint">
             This preview is read-only. It validates your file and returns the first 10 rows. Event amount is
             treated as unit price (revenue = amount × quantity).
@@ -80,6 +95,8 @@
           <div id="importMeta" class="imports-meta" aria-live="polite"></div>
           <div id="previewRows" class="imports-preview-rows"></div>
           <div id="previewErrors" class="imports-preview-errors"></div>
+          <p class="imports-hint">Customer and product imports populate their totals. Revenue and activity-based insights need event history. On the dashboard, choose a date range containing your events; keep their original dates.</p>
+          <a class="btn btn-secondary" href="./dashboard.html">View dashboard</a>
         </section>
       </main>
     </div>
