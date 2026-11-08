@@ -18,7 +18,7 @@ const protectMerchant = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
 
     const merchant = await Merchant.findById(decoded.id).select("-password");
 
@@ -26,6 +26,12 @@ const protectMerchant = async (req, res, next) => {
       return res.status(401).json({
         message: "Merchant not found"
       });
+    }
+
+    const tokenVersion = decoded.sv === undefined ? 0 : decoded.sv;
+    const accountVersion = merchant.sessionVersion === undefined ? 0 : merchant.sessionVersion;
+    if (!Number.isSafeInteger(tokenVersion) || tokenVersion < 0 || tokenVersion !== accountVersion) {
+      return res.status(401).json({ message: "Your session has expired. Please sign in again." });
     }
 
     req.merchant = merchant;

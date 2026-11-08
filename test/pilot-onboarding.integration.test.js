@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { test } = require("node:test");
+const { test, mock } = require("node:test");
 const fs = require("node:fs");
 const path = require("node:path");
 const mongoose = require("mongoose");
@@ -10,14 +10,17 @@ const Event = require("../models/Event");
 const ShopifyOrder = require("../models/ShopifyOrder");
 const { initializePilotDatabase } = require("../scripts/initialize-pilot-database");
 const configuredUri = process.env.DI_TEST_MONGO_URI;
+const recovery = require("../services/passwordRecovery");
+const nativeFetch = global.fetch.bind(global);
 
-test("first merchant: registration, persistent profile, three CSV imports, replays, date filters and tenant isolation", { skip: !configuredUri, timeout: 60000 }, async () => {
+test("first merchant: registration, persistent profile, CSV imports, date filters, password recovery and tenant isolation", { skip: !configuredUri, timeout: 60000 }, async () => {
   // Never connect to a remote host or a real database. Use our own fresh test
   // namespace so this test cannot race the Shopify integration test in CI.
   assert.match(configuredUri, /^mongodb:\/\/127\.0\.0\.1:\d+\/derma_insight_shopify_test_[a-z0-9_]+(?:\?|$)/);
   const target = new URL(configuredUri); target.pathname += "_onboarding";
-  const previous = { NODE_ENV: process.env.NODE_ENV, JWT_SECRET: process.env.JWT_SECRET };
+  const previous = Object.fromEntries(["NODE_ENV", "JWT_SECRET", "PASSWORD_RESET_ENABLED", "PASSWORD_RESET_APP_ORIGIN", "PASSWORD_RESET_FROM", "RESEND_API_KEY"].map(key => [key, process.env[key]]));
   process.env.NODE_ENV = "production"; process.env.JWT_SECRET = "isolated-onboarding-jwt-secret";
+  process.env.PASSWORD_RESET_ENABLED = "false";
   let server;
   try {
     await mongoose.connect(target.href, { autoIndex: false, autoCreate: false, serverSelectionTimeoutMS: 10000 });
@@ -138,7 +141,75 @@ test("first merchant: registration, persistent profile, three CSV imports, repla
     assert.equal((await upload("customers", customers, "import", other)).body.importedCount, 2);
     assert.equal((await upload("products", products, "import", other)).body.importedCount, 2);
     assert.equal((await request("/api/analytics/overview?days=90", { token: other })).body.summary.totalRevenue, 0);
+
+    // Recovery uses this same disposable database and intercepts every email.
+    // No provider credentials or live inbox are used for acceptance tests.
+    const deliveries = [];
+    mock.method(global, "fetch", async (url, options) => {
+      if (url === "https://api.resend.com/emails") {
+        deliveries.push(JSON.parse(options.body));
+        return new Response(JSON.stringify({ id: "isolated-message-id" }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      assert.ok(String(url).startsWith(base + "/"), "Only this loopback server and intercepted email endpoint are permitted");
+      return nativeFetch(url, options);
+    });
+    const statusBefore = await request("/api/merchants/auth/password-recovery");
+    assert.deepEqual(statusBefore.body, { available: false });
+    const blocked = await request("/api/merchants/auth/forgot-password", { method: "POST", json: { email: "first-pilot@example.com" } });
+    assert.equal(blocked.status, 503); assert.equal(deliveries.length, 0);
+    Object.assign(process.env, { PASSWORD_RESET_ENABLED: "true", PASSWORD_RESET_APP_ORIGIN: "https://pilot.example.com",
+      PASSWORD_RESET_FROM: "accounts@auth.example.com", RESEND_API_KEY: "re_isolated_onboarding_test_key" });
+    assert.deepEqual((await request("/api/merchants/auth/password-recovery")).body, { available: true });
+    const unknown = await request("/api/merchants/auth/forgot-password", { method: "POST", json: { email: "missing@example.com" } });
+    const known = await request("/api/merchants/auth/forgot-password", { method: "POST", json: { email: " FIRST-PILOT@EXAMPLE.COM " } });
+    await recovery.waitForBackgroundJobs();
+    assert.equal(known.status, 202); assert.deepEqual(known.body, unknown.body); assert.equal(deliveries.length, 1);
+    function proof(message) {
+      const link = new URL(message.text.match(/https:\/\/[^\s]+/)[0]);
+      assert.equal(link.search, ""); assert.equal(link.origin, "https://pilot.example.com");
+      const fields = new URLSearchParams(link.hash.slice(1));
+      return { id: fields.get("id"), token: fields.get("token") };
+    }
+    const firstProof = proof(deliveries[0]);
+    const stored = await Merchant.findById(firstProof.id).select("+passwordResetTokenHash +passwordResetExpiresAt").lean();
+    assert.equal(stored.passwordResetTokenHash, recovery.tokenHash(firstProof.token));
+    assert.notEqual(stored.passwordResetTokenHash, firstProof.token);
+    const cooldown = await request("/api/merchants/auth/forgot-password", { method: "POST", json: { email: "first-pilot@example.com" } });
+    await recovery.waitForBackgroundJobs(); assert.deepEqual(cooldown.body, known.body); assert.equal(deliveries.length, 1);
+    await request("/api/merchants/auth/forgot-password", { method: "POST", json: { email: "second-pilot@example.com" } });
+    await recovery.waitForBackgroundJobs(); assert.equal(deliveries.length, 2);
+    const otherProof = proof(deliveries[1]);
+    const otherBefore = await Merchant.findById(otherProof.id).select("+passwordResetTokenHash +passwordResetExpiresAt +passwordResetRequestedAt").lean();
+    async function change(details, password) { return request("/api/merchants/auth/reset-password", { method: "POST", json: { ...details, password } }); }
+    assert.equal((await change({ ...firstProof, id: otherProof.id }, "must-not-reset-other")).status, 400);
+    await Merchant.updateOne({ _id: firstProof.id }, { $set: { passwordResetExpiresAt: new Date(Date.now() - 1) } });
+    assert.equal((await change(firstProof, "must-not-use-expired")).status, 400);
+    await Merchant.updateOne({ _id: firstProof.id }, { $set: { passwordResetExpiresAt: stored.passwordResetExpiresAt } });
+    const candidates = ["new-pilot-password-one", "new-pilot-password-two"];
+    const raced = await Promise.all(candidates.map(password => change(firstProof, password)));
+    await recovery.waitForBackgroundJobs();
+    assert.deepEqual(raced.map(result => result.status).sort(), [200, 400]);
+    const winner = candidates[raced.findIndex(result => result.status === 200)];
+    assert.equal((await change(firstProof, "must-not-replay-link")).status, 400);
+    const consumed = await Merchant.findById(firstProof.id).select("+passwordResetTokenHash +passwordResetExpiresAt").lean();
+    assert.equal(consumed.passwordResetTokenHash, undefined); assert.equal(consumed.passwordResetExpiresAt, undefined);
+    assert.equal(consumed.sessionVersion, 1);
+    assert.equal((await request("/api/merchants/profile", { token })).status, 401);
+    assert.equal((await upload("customers", customers, "preview", token)).status, 401, "Old sessions cannot use CSV imports either");
+    assert.equal((await request("/api/merchants/profile", { token: other })).status, 200);
+    const otherAfter = await Merchant.findById(otherProof.id).select("+passwordResetTokenHash +passwordResetExpiresAt +passwordResetRequestedAt").lean();
+    assert.deepEqual(otherAfter, otherBefore, "Recovery must not change the other merchant or consume their reset link");
+    const oldLogin = await request("/api/merchants/auth/login", { method: "POST", json: { email: "first-pilot@example.com", password: "isolated-pilot-password" } });
+    assert.equal(oldLogin.status, 400);
+    const recovered = await request("/api/merchants/auth/login", { method: "POST", json: { email: "first-pilot@example.com", password: winner } });
+    assert.equal(recovered.status, 200, JSON.stringify(recovered.body));
+    const restored = await request("/api/merchants/profile", { token: recovered.body.token });
+    assert.equal(restored.status, 200); assert.equal(restored.body.merchant.businessName, "Saved Pilot Business");
+    assert.equal((await request("/api/analytics/overview?days=90", { token: recovered.body.token })).body.summary.totalRevenue, 96.98);
+    assert.equal(await Event.countDocuments(), 6); assert.equal(deliveries.length, 3);
+    assert.match(deliveries[2].subject, /was changed/); assert.ok(!deliveries[2].text.includes(winner));
   } finally {
+    await recovery.waitForBackgroundJobs(); mock.restoreAll();
     if (server) await new Promise(resolve => server.close(resolve));
     if (mongoose.connection.readyState === 1) await mongoose.connection.dropDatabase();
     await mongoose.disconnect();

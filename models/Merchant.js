@@ -13,6 +13,13 @@ const merchantSchema = new mongoose.Schema(
       match: [/^\S+@\S+\.\S+$/, "Please enter a valid email"],
     },
     password: { type: String, required: true, minlength: 6 },
+    // Missing versions on existing accounts mean zero. A completed recovery
+    // increments this value so previously issued JWTs stop authenticating.
+    sessionVersion: { type: Number, default: 0, min: 0, validate: Number.isSafeInteger },
+    // Bounded, optional recovery state. No TTL index: it would delete accounts.
+    passwordResetTokenHash: { type: String, match: /^[a-f0-9]{64}$/, select: false },
+    passwordResetExpiresAt: { type: Date, select: false },
+    passwordResetRequestedAt: { type: Date, select: false },
 
     platformType: { type: String, enum: ["custom", "shopify"], default: "custom" },
     shopifyStoreDomain: { type: String, default: null },
