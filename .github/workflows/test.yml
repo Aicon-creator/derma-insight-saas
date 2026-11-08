@@ -10,9 +10,12 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # MongoDB 8.0 rejects newer Ubuntu runner kernels (SERVER-136848).
+    # Keep the compatible runner until the upstream fix is released and tested.
+    runs-on: ubuntu-22.04
     timeout-minutes: 5
     strategy:
+      fail-fast: false
       matrix:
         node: [22, 24]
     steps:
@@ -24,7 +27,8 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Start isolated MongoDB replica set
         run: |
-          docker run -d --name derma-test-mongo -p 127.0.0.1:27018:27017 mongo:8.0 --replSet rs0 --bind_ip_all
+          uname -sr
+          docker run -d --name derma-test-mongo -p 127.0.0.1:27018:27017 mongo:8.0.34 --replSet rs0 --bind_ip_all
           for attempt in {1..20}; do
             if docker exec derma-test-mongo mongosh --quiet --eval 'db.adminCommand({ping:1})' >/dev/null 2>&1; then break; fi
             sleep 1
@@ -38,3 +42,8 @@ jobs:
       - run: npm test
         env:
           DI_TEST_MONGO_URI: mongodb://127.0.0.1:27018/derma_insight_shopify_test_ci?directConnection=true&replicaSet=rs0
+      - name: MongoDB diagnostics on failure
+        if: failure()
+        run: |
+          docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}' derma-test-mongo || true
+          docker logs --tail 120 derma-test-mongo || true

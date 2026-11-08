@@ -30,6 +30,19 @@ successful import alone does not verify them. Existing demo data stays separate.
 7. Preview and import the same files again. Existing records should be skipped,
    with no increase in counts or revenue. Record the observed result.
 
+## Business profile
+
+Open **Settings** from the account menu to edit the business and owner names.
+Wait for the account's current profile to load, then choose **Save profile**.
+The save is confirmed by the server, not just this browser. Sign out and sign
+back in (or use another browser) to confirm the saved names. The account email
+is read-only; email changes and logo uploads are not included in this pilot.
+
+If loading fails, the form stays locked until **Reload profile** succeeds. If
+a save cannot be confirmed, reload before retrying: the server may have saved
+the changes even if the response was lost. Shopify connection settings remain
+separate and are not changed when saving the business profile.
+
 ## What the numbers mean
 
 - Customer and product totals describe the imported records. Those files alone

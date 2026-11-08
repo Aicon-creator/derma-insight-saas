@@ -22,7 +22,7 @@
             <div class="breadcrumbs">
               <h1>Settings</h1>
             </div>
-            <p class="topbar-sub">Store connection, business profile and branding</p>
+            <p class="topbar-sub">Store connection and business profile</p>
           </div>
 
           <div class="topbar-actions">
@@ -64,23 +64,32 @@
           <p class="muted">Disconnecting removes the saved connection and keeps imported records. Uninstall the app in Shopify to revoke its permissions there.</p>
         </section>
 
-        <section class="card" style="max-width:640px">
-          <h3>Business profile</h3>
-          <form id="settingsForm">
-            <label for="businessName">Business name</label>
-            <input id="businessName" name="businessName" type="text" required />
-
-            <label for="logoInput">Logo (optional)</label>
-            <input id="logoInput" type="file" accept="image/*" />
-            <div id="logoPreview" style="margin-top:8px"></div>
-
-            <div style="margin-top:12px">
-              <button class="btn btn-primary" id="saveSettings">Save</button>
-              <button class="btn btn-secondary" id="cancelSettings" type="button">Cancel</button>
-            </div>
-
-            <p class="muted" style="margin-top:8px">Note: Settings are saved locally in the browser for demo purposes.</p>
+        <section class="card" style="max-width:640px" aria-labelledby="businessProfileHeading">
+          <h2 id="businessProfileHeading">Business profile</h2>
+          <p id="settingsHelp" class="muted">Changes are saved to your account, including when you sign in from another browser. Email changes and logo uploads are not available in this pilot.</p>
+          <form id="settingsForm" aria-describedby="settingsHelp" aria-busy="true">
+            <fieldset id="settingsFields" disabled style="border:0;padding:0;margin:0;min-width:0;display:grid;gap:16px">
+              <legend>Account details</legend>
+              <div class="form-field">
+                <label for="businessName">Business name</label>
+                <input id="businessName" name="businessName" type="text" maxlength="120" autocomplete="organization" required />
+              </div>
+              <div class="form-field">
+                <label for="ownerName">Owner name</label>
+                <input id="ownerName" name="ownerName" type="text" maxlength="100" autocomplete="name" required />
+              </div>
+              <div class="form-field">
+                <label for="merchantEmail">Account email (read-only)</label>
+                <input id="merchantEmail" type="email" autocomplete="email" readonly />
+              </div>
+              <div>
+                <button class="btn btn-primary" id="saveSettings" type="submit">Save profile</button>
+                <a class="btn btn-secondary" href="./dashboard.html">Back to dashboard</a>
+              </div>
+            </fieldset>
           </form>
+          <p id="settingsStatus" role="status" aria-live="polite">Loading your business profile…</p>
+          <button class="btn btn-secondary hidden" id="reloadSettings" type="button">Reload profile</button>
         </section>
       </main>
     </div>

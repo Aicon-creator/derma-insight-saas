@@ -11,7 +11,7 @@ const ShopifyOrder = require("../models/ShopifyOrder");
 const { initializePilotDatabase } = require("../scripts/initialize-pilot-database");
 const configuredUri = process.env.DI_TEST_MONGO_URI;
 
-test("first merchant: registration, templates, three CSV imports, replays, date filters and tenant isolation", { skip: !configuredUri, timeout: 60000 }, async () => {
+test("first merchant: registration, persistent profile, three CSV imports, replays, date filters and tenant isolation", { skip: !configuredUri, timeout: 60000 }, async () => {
   // Never connect to a remote host or a real database. Use our own fresh test
   // namespace so this test cannot race the Shopify integration test in CI.
   assert.match(configuredUri, /^mongodb:\/\/127\.0\.0\.1:\d+\/derma_insight_shopify_test_[a-z0-9_]+(?:\?|$)/);
@@ -43,6 +43,31 @@ test("first merchant: registration, templates, three CSV imports, replays, date 
     }
     const token = await account("first-pilot@example.com");
     const other = await account("second-pilot@example.com");
+    const initialProfile = await request("/api/merchants/profile", { token });
+    assert.equal(initialProfile.status, 200); assert.equal(initialProfile.body.merchant.businessName, "Pilot Test");
+    const changedProfile = await request("/api/merchants/profile", { method: "PATCH", token, json: {
+      businessName: "  Saved Pilot Business  ", ownerName: "  Saved Pilot Owner  "
+    } });
+    assert.equal(changedProfile.status, 200, JSON.stringify(changedProfile.body));
+    assert.equal(changedProfile.body.merchant.businessName, "Saved Pilot Business");
+    assert.equal(changedProfile.body.merchant.ownerName, "Saved Pilot Owner");
+    assert.equal(changedProfile.body.merchant.email, "first-pilot@example.com");
+    assert.equal(changedProfile.body.merchant.password, undefined);
+    const freshLogin = await request("/api/merchants/auth/login", { method: "POST", json: {
+      email: "first-pilot@example.com", password: "isolated-pilot-password"
+    } });
+    assert.equal(freshLogin.status, 200); assert.equal(freshLogin.body.businessName, "Saved Pilot Business");
+    assert.equal(freshLogin.body.ownerName, "Saved Pilot Owner", "A fresh login sees the server-saved profile; no browser storage is involved");
+    const rereadProfile = await request("/api/merchants/profile", { token: freshLogin.body.token });
+    assert.deepEqual(rereadProfile.body.merchant, changedProfile.body.merchant);
+    assert.equal((await request("/api/merchants/profile", { token: other })).body.merchant.businessName, "Pilot Test");
+    const forbidden = await request("/api/merchants/profile", { method: "PATCH", token, json: {
+      businessName: "Must not save", merchantId: (await request("/api/merchants/profile", { token: other })).body.merchant._id,
+      email: "different@example.com", password: "overwritten-password", subscriptionTier: "premium"
+    } });
+    assert.equal(forbidden.status, 400);
+    assert.equal((await request("/api/merchants/profile", { token })).body.merchant.businessName, "Saved Pilot Business");
+    assert.equal((await request("/api/merchants/profile", { method: "PATCH", json: { businessName: "Unauthorized" } })).status, 401);
     assert.equal(await Customer.countDocuments(), 0); assert.equal(await Product.countDocuments(), 0);
     assert.equal(await Event.countDocuments(), 0, "Registration does not populate fake activity");
     const empty = await request("/api/analytics/overview?days=30", { token });
