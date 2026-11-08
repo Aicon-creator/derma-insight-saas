@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
+      fail-fast: false
       matrix:
         node: [22, 24]
     steps:
@@ -38,3 +39,8 @@ jobs:
       - run: npm test
         env:
           DI_TEST_MONGO_URI: mongodb://127.0.0.1:27018/derma_insight_shopify_test_ci?directConnection=true&replicaSet=rs0
+      - name: MongoDB diagnostics on failure
+        if: failure()
+        run: |
+          docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}}' derma-test-mongo || true
+          docker logs --tail 120 derma-test-mongo || true
