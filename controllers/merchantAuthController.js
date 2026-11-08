@@ -5,8 +5,8 @@ const jwt = require("jsonwebtoken");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
 
-const generateToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+const generateToken = (id, sessionVersion = 0) =>
+  jwt.sign({ id, sv: sessionVersion }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
 const registerMerchant = asyncHandler(async (req, res) => {
   const { businessName, ownerName, email, password } = req.body;
@@ -36,7 +36,7 @@ const registerMerchant = asyncHandler(async (req, res) => {
     businessName: newMerchant.businessName,
     ownerName: newMerchant.ownerName,
     email: newMerchant.email,
-    token: generateToken(newMerchant._id),
+    token: generateToken(newMerchant._id, newMerchant.sessionVersion),
   });
 });
 
@@ -57,7 +57,7 @@ const loginMerchant = asyncHandler(async (req, res) => {
     businessName: foundMerchant.businessName,
     ownerName: foundMerchant.ownerName,
     email: foundMerchant.email,
-    token: generateToken(foundMerchant._id),
+    token: generateToken(foundMerchant._id, foundMerchant.sessionVersion),
   });
 });
 

@@ -43,6 +43,19 @@ a save cannot be confirmed, reload before retrying: the server may have saved
 the changes even if the response was lost. Shopify connection settings remain
 separate and are not changed when saving the business profile.
 
+## Recovering account access
+
+Choose **Forgot your password?** on the sign-in page. When the operator has
+activated verified email delivery, a matching account receives a single-use
+15-minute reset link. Confirm the new password and sign in again; earlier
+sessions expire. The request message deliberately does not reveal whether an
+email is registered. If recovery is unavailable or mail does not arrive, contact
+the agreed pilot support contact. Do not share reset links or codes.
+
+Operator configuration and live inbox acceptance are documented in
+[password-recovery.md](password-recovery.md); automated tests do not activate
+real email delivery.
+
 ## What the numbers mean
 
 - Customer and product totals describe the imported records. Those files alone
