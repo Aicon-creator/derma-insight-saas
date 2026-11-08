@@ -187,19 +187,21 @@
 
     window.addEventListener('orientationchange', handleViewportChange);
   }
-  function renderMerchantProfile(){
+  function renderMerchantProfile(profile){
     try{
-      const raw = localStorage.getItem('merchantData'); if(!raw) return;
-      const md = JSON.parse(raw);
+      const raw = profile || JSON.parse(localStorage.getItem('merchantData') || 'null');
+      const md = raw?.merchant || raw;
+      if(!md || typeof md.businessName !== 'string') return;
       const nameEl = document.getElementById('merchantName');
       const avatarEl = document.getElementById('merchantAvatar');
-      if(nameEl && md.businessName) nameEl.textContent = md.businessName;
+      if(nameEl) nameEl.textContent = md.businessName;
       if(avatarEl){
-        if(md.logoDataUrl){ avatarEl.innerHTML = `<img src="${md.logoDataUrl}" alt="Logo" style="width:100%;height:100%;border-radius:50%;object-fit:cover"/>`; }
-        else if(md.businessName){ const initials = md.businessName.split(' ').slice(0,2).map(s=>s[0]).join('').toUpperCase(); avatarEl.textContent = initials; }
+        const initials = md.businessName.trim().split(/\s+/).slice(0,2).map(s=>s[0] || '').join('').toUpperCase();
+        avatarEl.textContent = initials || 'DI';
       }
     }catch(e){/* silent */}
   }
+  window.addEventListener('di:merchant-profile-updated', (event)=>{ renderMerchantProfile(event.detail); });
   function setupMerchantMenu(){
     const merchantBtn = document.getElementById('merchantBtn');
     const merchantMenu = document.getElementById('merchantMenu');
